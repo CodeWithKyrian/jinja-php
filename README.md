@@ -44,18 +44,18 @@ Jinja PHP supports various control structures from Jinja templates. Here are som
 
 ### Conditional Statements:
 
-```php
+```js
 {% if user.isActive %}
-  Hello, {{ user.name }}!
+  "Hello," {{ user.name }}!
 {% else %}
-  Hello, Guest!
+  "Hello, Guest!"
 {% endif %}
 
 ```
 
 ### For Loops
 
-```php
+```js
 <ul>
 {% for user in users %}
   <li>{{ user.name }}</li>
@@ -65,7 +65,7 @@ Jinja PHP supports various control structures from Jinja templates. Here are som
 </ul>
 ```
 
-```php
+```js
 {% for user in users %}
   {{ loop.index }} - {{ user.name }}
 {% endfor %}
@@ -73,7 +73,7 @@ Jinja PHP supports various control structures from Jinja templates. Here are som
 
 ### Variable Filters
 
-```php
+```js
 {{ "Hello World!"|lower }}
 ```
 
