@@ -1,5 +1,10 @@
 # Jinja PHP
 
+[![Build Status](https://github.com/CodeWithKyrian/jinja-php/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/CodeWithKyrian/jinja-php/actions/workflows/test.yml)
+[![GitHub source](https://img.shields.io/badge/Github-source-informational?logo=github)](https://github.com/CodeWithKyrian/jinja-php/)
+[![GitHub license](https://img.shields.io/github/license/CodeWithKyrian/jinja-php.svg)](https://github.com/codewithkyrian/jinja-php/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/release/CodeWithKyrian/jinja-php.svg)](https://github.com/byjg/php-jinja/releases/)
+
 A minimalistic **zero-dependency** PHP implementation of the Jinja templating engine, specifically designed for parsing and rendering
 machine learning (ML) chat templates. This project is heavily inspired by HuggingFace's Jinja template engine in
 JavaScript, intended primarily for ML chat templates, but is versatile enough to be used for general purposes of parsing
