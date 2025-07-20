@@ -41,8 +41,12 @@ class Template
 
         // Declare global variables
         $env->set('false', false);
+        $env->set('False', false);
         $env->set('true', true);
-        $env->set('raise_exception', fn($args) => throw new RuntimeException($args));
+        $env->set('True', true);
+        $env->set('none', null);
+        $env->set('None', null);
+        $env->set('raise_exception', fn(string $args) => throw new RuntimeException($args));
         $env->set('range', range(...));
 
         // Add user-defined variables
@@ -54,8 +58,8 @@ class Template
 
         $interpreter = new Interpreter($env);
 
-        /** @var StringValue $result */
         $result = $interpreter->run($this->parsed);
+
         return $result->value;
     }
 }

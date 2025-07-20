@@ -17,7 +17,7 @@ abstract class RuntimeValue implements JsonSerializable
     public array $builtins = [];
 
     public function __construct(
-        public mixed $value
+        public $value
     ) {}
 
     /**

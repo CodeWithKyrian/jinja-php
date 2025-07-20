@@ -8,7 +8,8 @@ namespace Codewithkyrian\Jinja\AST;
 /**
  * Represents a tuple literal in the template.
  */
-class TupleLiteral extends Literal {
+class TupleLiteral extends Literal
+{
     public string $type = "TupleLiteral";
 
     /**

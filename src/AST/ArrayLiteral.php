@@ -8,7 +8,8 @@ namespace Codewithkyrian\Jinja\AST;
 /**
  * Represents an array literal in the template.
  */
-class ArrayLiteral extends Literal {
+class ArrayLiteral extends Literal
+{
     public string $type = "ArrayLiteral";
 
     /**

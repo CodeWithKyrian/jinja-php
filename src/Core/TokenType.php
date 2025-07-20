@@ -10,13 +10,10 @@ namespace Codewithkyrian\Jinja\Core;
  */
 enum TokenType: string
 {
-
     case Text = "Text";
     case NumericLiteral = "NumericLiteral"; // e.g., 123
-    case BooleanLiteral = "BooleanLiteral"; // true or false
-    case NullLiteral = "NullLiteral"; // null
     case StringLiteral = "StringLiteral"; // 'string'
-    case Identifier = "Identifier"; // Variables, functions, etc.
+    case Identifier = "Identifier"; // Variables, functions, statements, booleans, etc.
     case Equals = "Equals"; // =
     case OpenParen = "OpenParen"; // (
     case CloseParen = "CloseParen"; // )
@@ -34,28 +31,9 @@ enum TokenType: string
     case Pipe = "Pipe"; // |
 
     case CallOperator = "CallOperator"; // ()
-    case AdditiveBinaryOperator = "AdditiveBinaryOperator"; // + -
+    case AdditiveBinaryOperator = "AdditiveBinaryOperator"; // + - ~
     case MultiplicativeBinaryOperator = "MultiplicativeBinaryOperator"; // * / %
     case ComparisonBinaryOperator = "ComparisonBinaryOperator"; // < > <= >= == !=
     case UnaryOperator = "UnaryOperato"; // ! - +
-
-        // Keywords
-    case Set = "Set";
-    case If = "If";
-    case For = "For";
-    case In = "In";
-    case Is = "Is";
-    case NotIn = "NotIn";
-    case Else = "Else";
-    case EndSet = "EndSet";
-    case EndIf = "EndIf";
-    case ElseIf = "ElseIf";
-    case EndFor = "EndFor";
-    case And = "And";
-    case Or = "Or";
-    case Not = "UnaryOperator";
-    case Macro = "Macro";
-    case EndMacro = "EndMacro";
-    case Break = "Break";
-    case Continue = "Continue";
+    case Comment = "Comment"; // #
 }

@@ -13,7 +13,5 @@ abstract class Literal extends Expression
 {
     public string $type = "Literal";
 
-    public function __construct(public mixed $value)
-    {
-    }
+    public function __construct(public $value) {}
 }

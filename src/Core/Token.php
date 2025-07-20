@@ -10,35 +10,6 @@ namespace Codewithkyrian\Jinja\Core;
  */
 class Token
 {
-    public const KEYWORDS = [
-        'set' => TokenType::Set,
-        'for' => TokenType::For,
-        'in' => TokenType::In,
-        'is' => TokenType::Is,
-        'if' => TokenType::If,
-        'else' => TokenType::Else,
-        'endset' => TokenType::EndSet,
-        'endif' => TokenType::EndIf,
-        'elif' => TokenType::ElseIf,
-        'endfor' => TokenType::EndFor,
-        'and' => TokenType::And,
-        'or' => TokenType::Or,
-        'not' => TokenType::Not,
-        'not in' => TokenType::NotIn,
-        'macro' => TokenType::Macro,
-        'endmacro' => TokenType::EndMacro,
-        'break' => TokenType::Break,
-        'continue' => TokenType::Continue,
-
-        // Literals
-        'true' => TokenType::BooleanLiteral,
-        'false' => TokenType::BooleanLiteral,
-        'none' => TokenType::NullLiteral,
-        'True' => TokenType::BooleanLiteral,
-        'False' => TokenType::BooleanLiteral,
-        'None' => TokenType::NullLiteral,
-    ];
-
     public const ORDERED_MAPPING_TABLE = [
         // Control sequences
         ["{%", TokenType::OpenStatement],
@@ -69,6 +40,7 @@ class Token
         // Arithmetic operators
         ["+", TokenType::AdditiveBinaryOperator],
         ["-", TokenType::AdditiveBinaryOperator],
+        ["~", TokenType::AdditiveBinaryOperator],
         ["*", TokenType::MultiplicativeBinaryOperator],
         ["/", TokenType::MultiplicativeBinaryOperator],
         ["%", TokenType::MultiplicativeBinaryOperator],

@@ -9,6 +9,7 @@ use Codewithkyrian\Jinja\Core\Parser;
 
 beforeEach(function () {
     $this->env = new Environment();
+    $this->env->set('True', true);
 });
 
 test('should handle whitespace control', function ($template, $data, $lstripBlocks, $trimBlocks, $target) {

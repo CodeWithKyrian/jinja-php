@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 
 namespace Codewithkyrian\Jinja\AST;
+
 /**
  * Represents an object literal in the template.
  */
-class ObjectLiteral extends Literal {
+class ObjectLiteral extends Literal
+{
     public string $type = "ObjectLiteral";
 
     /**

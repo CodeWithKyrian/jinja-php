@@ -22,25 +22,23 @@ class Lexer
         // Remove trailing newline if present, as in Jinja's default configuration.
         $template = rtrim($template, "\n");
 
-        // Replace comments with a placeholder to avoid interference.
-        $template = preg_replace('/{#.*?#}/s', '{##}', $template);
-
         // Strip whitespace from block beginnings.
         if ($lstripBlocks) {
-            $template = preg_replace('/^[ \t]*({[%#])/', '$1', $template);
+            $template = preg_replace('/^[ \t]*({[#%-])/', '$1', $template);
         }
 
         // Remove first newline after template tags
         if ($trimBlocks) {
-            $template = preg_replace('/([%#]})\n/', '$1', $template);
+            $template = preg_replace('/([#%-]})\n/', '$1', $template);
         }
 
         // Process template string further based on options and Jinja standards
-        $template = str_replace('{##}', '', $template); // Remove placeholders for comments
         $template = preg_replace('/-%}\s*/', '%}', $template);
         $template = preg_replace('/\s*{%-/', '{%', $template);
         $template = preg_replace('/-}}\s*/', '}}', $template);
         $template = preg_replace('/\s*{{-/', '{{', $template);
+        $template = preg_replace('/-#}\s*/', '#}', $template);
+        $template = preg_replace('/\s*{#-/', '{#', $template);
 
         return $template;
     }
@@ -58,13 +56,13 @@ class Lexer
         /** @var Token[] $tokens */
         $tokens = [];
 
-        $src = self::preprocess($source, $lstripBlocks, $trimBlocks); // Assume preprocess is already adapted to PHP
+        $src = self::preprocess($source, $lstripBlocks, $trimBlocks);
 
         $cursorPosition = 0;
+        $curlyBracketDepth = 0;
         $srcLength = strlen($src);
 
         $isWord = fn($char) => preg_match('/\w/', $char) == 1;
-
         $isInteger = fn($char) => preg_match('/[0-9]/', $char) == 1;
 
         $consumeWhile = function (callable $predicate) use (&$src, &$cursorPosition, $srcLength) {
@@ -102,11 +100,12 @@ class Lexer
                 is_null($lastTokenType)
                 || $lastTokenType === TokenType::CloseStatement
                 || $lastTokenType === TokenType::CloseExpression
+                || $lastTokenType === TokenType::Comment
             ) {
                 $text = "";
                 while (
                     $cursorPosition < $srcLength
-                    && !($src[$cursorPosition] === "{" && ($src[$cursorPosition + 1] === "%" || $src[$cursorPosition + 1] === "{"))
+                    && !($src[$cursorPosition] === "{" && ($src[$cursorPosition + 1] === "%" || $src[$cursorPosition + 1] === "{" || $src[$cursorPosition + 1] === "#"))
                 ) {
                     $text .= $src[$cursorPosition++];
                 }
@@ -116,6 +115,23 @@ class Lexer
                     $tokens[] = new Token($text, TokenType::Text);
                     continue;
                 }
+            }
+
+            // Possibly consume a comment
+            if ($src[$cursorPosition] === "{" && $src[$cursorPosition + 1] === "#") {
+                $cursorPosition += 2; // Skip the opening {#
+
+                $comment = "";
+                while ($src[$cursorPosition] !== "#" || $src[$cursorPosition + 1] !== "}") {
+                    // Check for end of input
+                    if ($cursorPosition + 2 >= $srcLength) {
+                        throw new SyntaxError("Missing end of comment tag");
+                    }
+                    $comment .= $src[$cursorPosition++];
+                }
+                $tokens[] = new Token($comment, TokenType::Comment);
+                $cursorPosition += 2; // Skip the closing #}
+                continue;
             }
 
             // Consume (and ignore) all whitespace inside Jinja statements or expressions
@@ -132,8 +148,6 @@ class Lexer
                 switch ($lastTokenType) {
                     case TokenType::Identifier:
                     case TokenType::NumericLiteral:
-                    case TokenType::BooleanLiteral:
-                    case TokenType::NullLiteral:
                     case TokenType::StringLiteral:
                     case TokenType::CloseParen:
                     case TokenType::CloseSquareBracket:
@@ -158,12 +172,30 @@ class Lexer
                 }
             }
 
-            foreach (Token::ORDERED_MAPPING_TABLE as [$c, $t]) {
-                $slice = substr($src, $cursorPosition, strlen($c));
+            foreach (Token::ORDERED_MAPPING_TABLE as [$sequence, $type]) {
+                // $slice = substr($src, $cursorPosition, strlen($c));
 
-                if ($slice === $c) {
-                    $tokens[] = new Token($c, $t);
-                    $cursorPosition += strlen($c);
+                // if ($slice === $c) {
+                //     $tokens[] = new Token($c, $t);
+                //     $cursorPosition += strlen($c);
+                //     continue 2; // Continue the outer loop.
+                // }
+
+                if ($sequence === "}}" && $curlyBracketDepth > 0) {
+                    continue;
+                }
+                $slice = substr($src, $cursorPosition, strlen($sequence));
+                if ($slice === $sequence) {
+                    $tokens[] = new Token($sequence, $type);
+
+                    if ($type === TokenType::OpenExpression) {
+                        $curlyBracketDepth = 0;
+                    } else if ($type === TokenType::OpenCurlyBracket) {
+                        ++$curlyBracketDepth;
+                    } else if ($type === TokenType::CloseCurlyBracket) {
+                        --$curlyBracketDepth;
+                    }
+                    $cursorPosition += strlen($sequence);
                     continue 2; // Continue the outer loop.
                 }
             }
@@ -178,6 +210,11 @@ class Lexer
 
             if ($isInteger($char)) {
                 $num = $consumeWhile($isInteger);
+                if ($src[$cursorPosition] === "." && $isInteger($src[$cursorPosition + 1])) {
+                    ++$cursorPosition; // consume '.'
+                    $frac = $consumeWhile($isInteger);
+                    $num = "$num.$frac";
+                }
                 $tokens[] = new Token($num, TokenType::NumericLiteral);
                 continue;
             }
@@ -185,15 +222,7 @@ class Lexer
             if ($isWord($char)) {
                 $word = $consumeWhile($isWord);
 
-                $type = Token::KEYWORDS[$word] ?? TokenType::Identifier;
-
-                // Special case handling for "not in"
-                if ($type === TokenType::In && end($tokens)->type === TokenType::Not) {
-                    array_pop($tokens);
-                    $tokens[] = new Token("not in", TokenType::NotIn);
-                } else {
-                    $tokens[] = new Token($word, $type);
-                }
+                $tokens[] = new Token($word, TokenType::Identifier);
 
                 continue;
             }

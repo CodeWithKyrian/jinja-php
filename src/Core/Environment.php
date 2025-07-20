@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\Core;
 
 use Codewithkyrian\Jinja\Exceptions\RuntimeException;
 use Codewithkyrian\Jinja\Exceptions\SyntaxError;
 use Codewithkyrian\Jinja\Runtime\ArrayValue;
 use Codewithkyrian\Jinja\Runtime\BooleanValue;
+use Codewithkyrian\Jinja\Runtime\FloatValue;
 use Codewithkyrian\Jinja\Runtime\FunctionValue;
+use Codewithkyrian\Jinja\Runtime\IntegerValue;
 use Codewithkyrian\Jinja\Runtime\NullValue;
 use Codewithkyrian\Jinja\Runtime\NumericValue;
 use Codewithkyrian\Jinja\Runtime\ObjectValue;
@@ -57,60 +58,33 @@ class Environment
             'boolean' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue",
             'callable' => fn(RuntimeValue $operand) => $operand instanceof FunctionValue,
             'odd' => function (RuntimeValue $operand) {
-                if ($operand->type !== "NumericValue") {
+                if (!($operand instanceof IntegerValue)) {
                     throw new RuntimeException("Cannot apply test 'odd' to type: $operand->type");
                 }
                 return $operand->value % 2 !== 0;
             },
             'even' => function (RuntimeValue $operand) {
-                if ($operand->type !== "NumericValue") {
+                if (!($operand instanceof IntegerValue)) {
                     throw new RuntimeException("Cannot apply test 'even' to type: $operand->type");
                 }
                 return $operand->value % 2 === 0;
             },
-            'false' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && !$operand->value,
-            'true' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && $operand->value,
-            'null' => fn(RuntimeValue $operand) => $operand->type === "NullValue",
-            'string' => fn(RuntimeValue $operand) => $operand->type === "StringValue",
-            'number' => fn(RuntimeValue $operand) => $operand->type === "NumericValue",
-            'integer' => function (RuntimeValue $operand) {
-                if ($operand->type !== "NumericValue") {
-                    return false;
-                }
-                return is_int($operand->value);
-            },
+            'false' => fn(RuntimeValue $operand) => $operand instanceof BooleanValue && !$operand->value,
+            'true' => fn(RuntimeValue $operand) => $operand instanceof BooleanValue && $operand->value,
+            'null' => fn(RuntimeValue $operand) => $operand instanceof NullValue,
+            'string' => fn(RuntimeValue $operand) => $operand instanceof StringValue,
+            'number' => fn(RuntimeValue $operand) => $operand instanceof IntegerValue || $operand instanceof FloatValue,
+            'integer' => fn(RuntimeValue $operand) => $operand instanceof IntegerValue,
             'iterable' => fn(RuntimeValue $operand) => $operand instanceof ArrayValue || $operand instanceof StringValue,
             'mapping' => fn(RuntimeValue $operand) => $operand instanceof ObjectValue,
-            'lower' => function (RuntimeValue $operand) {
-                if ($operand->type !== "StringValue") {
-                    return false;
-                }
-                return $operand->value === strtolower($operand->value);
-            },
-            'upper' => function (RuntimeValue $operand) {
-                if ($operand->type !== "StringValue") {
-                    return false;
-                }
-                return $operand->value === strtoupper($operand->value);
-            },
-            'none' => function (RuntimeValue $operand) {
-                return $operand->type === "NullValue";
-            },
-            'defined' => function (RuntimeValue $operand) {
-                return $operand->type !== "UndefinedValue";
-            },
-            'undefined' => function (RuntimeValue $operand) {
-                return $operand->type === "UndefinedValue";
-            },
-            'equalto' => function (RuntimeValue $a, RuntimeValue $b) {
-                return $a->value === $b->value;
-            },
-            'eq' => function (RuntimeValue $a, RuntimeValue $b) {
-                return $a->value === $b->value;
-            },
-            'ne' => function (RuntimeValue $a, RuntimeValue $b) {
-                return $a->value !== $b->value;
-            }
+            'lower' => fn(RuntimeValue $operand) => $operand instanceof StringValue && $operand->value === strtolower($operand->value),
+            'upper' => fn(RuntimeValue $operand) => $operand instanceof StringValue && $operand->value === strtoupper($operand->value),
+            'none' => fn(RuntimeValue $operand) => $operand instanceof NullValue,
+            'defined' => fn(RuntimeValue $operand) => $operand instanceof UndefinedValue,
+            'undefined' => fn(RuntimeValue $operand) => $operand instanceof UndefinedValue,
+            'equalto' => fn(RuntimeValue $a, RuntimeValue $b) => $a->value === $b->value,
+            'eq' => fn(RuntimeValue $a, RuntimeValue $b) => $a->value === $b->value,
+            'ne' => fn(RuntimeValue $a, RuntimeValue $b) => $a->value !== $b->value,
         ];
     }
 
@@ -169,8 +143,11 @@ class Environment
      */
     public static function convertToRuntimeValues(mixed $input): RuntimeValue
     {
-        if (is_numeric($input)) {
-            return new NumericValue(floatval($input));
+        if (is_int($input)) {
+            return new IntegerValue($input);
+        }
+        if (is_float($input)) {
+            return new FloatValue($input);
         }
 
         if (is_string($input)) {
