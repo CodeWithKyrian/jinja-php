@@ -19,8 +19,9 @@ class StringValue extends RuntimeValue
             "lower" => new FunctionValue(fn() => new StringValue(strtolower($this->value))),
             "strip" => new FunctionValue(fn() => new StringValue(trim($this->value))),
             "title" => new FunctionValue(fn() => new StringValue(toTitleCase($this->value))),
-            "length" => new NumericValue(strlen($this->value))
+            "length" => new NumericValue(strlen($this->value)),
+            "rstrip" => new FunctionValue(fn() => new StringValue(rtrim($this->value))),
+            "lstrip" => new FunctionValue(fn() => new StringValue(ltrim($this->value)))
         ];
     }
-
 }
