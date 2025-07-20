@@ -158,7 +158,7 @@ class Environment
     public static function convertToRuntimeValues(mixed $input): RuntimeValue
     {
         if (is_numeric($input)) {
-            return new NumericValue($input);
+            return new NumericValue(floatval($input));
         }
 
         if (is_string($input)) {
