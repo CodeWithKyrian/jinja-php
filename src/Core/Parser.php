@@ -7,6 +7,7 @@ namespace Codewithkyrian\Jinja\Core;
 use Codewithkyrian\Jinja\AST\ArrayLiteral;
 use Codewithkyrian\Jinja\AST\BinaryExpression;
 use Codewithkyrian\Jinja\AST\BooleanLiteral;
+use Codewithkyrian\Jinja\AST\BreakStatement;
 use Codewithkyrian\Jinja\AST\CallExpression;
 use Codewithkyrian\Jinja\AST\FilterExpression;
 use Codewithkyrian\Jinja\AST\ForStatement;
@@ -20,6 +21,7 @@ use Codewithkyrian\Jinja\AST\NumericLiteral;
 use Codewithkyrian\Jinja\AST\ObjectLiteral;
 use Codewithkyrian\Jinja\AST\Program;
 use Codewithkyrian\Jinja\AST\SelectExpression;
+use Codewithkyrian\Jinja\AST\ContinueStatement;
 use Codewithkyrian\Jinja\AST\SetStatement;
 use Codewithkyrian\Jinja\AST\SliceExpression;
 use Codewithkyrian\Jinja\AST\Statement;
@@ -164,6 +166,18 @@ class Parser
                 $this->expect(TokenType::EndFor, "Expected endfor token");
                 $this->expect(TokenType::CloseStatement, "Expected %} token");
 
+                break;
+
+            case TokenType::Break:
+                $this->current++;
+                $this->expect(TokenType::CloseStatement, "Expected closing statement token");
+                $result = new BreakStatement();
+                break;
+
+            case TokenType::Continue:
+                $this->current++;
+                $this->expect(TokenType::CloseStatement, "Expected closing statement token");
+                $result = new ContinueStatement();
                 break;
 
             default:

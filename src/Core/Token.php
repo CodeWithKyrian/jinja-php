@@ -25,6 +25,10 @@ class Token
         'or' => TokenType::Or,
         'not' => TokenType::Not,
         'not in' => TokenType::NotIn,
+        'macro' => TokenType::Macro,
+        'endmacro' => TokenType::EndMacro,
+        'break' => TokenType::Break,
+        'continue' => TokenType::Continue,
 
         // Literals
         'true' => TokenType::BooleanLiteral,

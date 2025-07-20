@@ -56,4 +56,6 @@ enum TokenType: string
     case Not = "UnaryOperator";
     case Macro = "Macro";
     case EndMacro = "EndMacro";
+    case Break = "Break";
+    case Continue = "Continue";
 }

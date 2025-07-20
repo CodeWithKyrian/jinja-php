@@ -26,6 +26,8 @@ use Codewithkyrian\Jinja\Exceptions\RuntimeException;
 use Codewithkyrian\Jinja\Exceptions\SyntaxError;
 use Codewithkyrian\Jinja\Runtime\ArrayValue;
 use Codewithkyrian\Jinja\Runtime\BooleanValue;
+use Codewithkyrian\Jinja\Runtime\BreakControl;
+use Codewithkyrian\Jinja\Runtime\ContinueControl;
 use Codewithkyrian\Jinja\Runtime\FunctionValue;
 use Codewithkyrian\Jinja\Runtime\KeywordArgumentsValue;
 use Codewithkyrian\Jinja\Runtime\NullValue;
@@ -72,6 +74,12 @@ class Interpreter
 
             case "Macro":
                 return $this->evaluateMacro($statement, $environment);
+
+            case "BreakStatement":
+                throw new BreakControl();
+
+            case "ContinueStatement":
+                throw new ContinueControl();
 
             case "NumericLiteral":
                 return new NumericValue($statement->value);
@@ -786,8 +794,15 @@ class Interpreter
 
             $scopeUpdateFunction = $scopeUpdateFunctions[$i];
             $scopeUpdateFunction($scope);
-            $evaluated = $this->evaluateBlock($node->body, $scope);
-            $result .= $evaluated->value;
+
+            try {
+                $evaluated = $this->evaluateBlock($node->body, $scope);
+                $result .= $evaluated->value;
+            } catch (BreakControl $e) {
+                break;
+            } catch (ContinueControl $e) {
+                continue;
+            }
 
             $noIteration = false; // At least one iteration took place
         }
