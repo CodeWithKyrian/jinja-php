@@ -106,7 +106,8 @@ class Lexer
                 $text = "";
                 while (
                     $cursorPosition < $srcLength
-                    && !($src[$cursorPosition] === "{" && ($src[$cursorPosition + 1] === "%" || $src[$cursorPosition + 1] === "{"))) {
+                    && !($src[$cursorPosition] === "{" && ($src[$cursorPosition + 1] === "%" || $src[$cursorPosition + 1] === "{"))
+                ) {
                     $text .= $src[$cursorPosition++];
                 }
 
@@ -120,7 +121,7 @@ class Lexer
             // Consume (and ignore) all whitespace inside Jinja statements or expressions
             $consumeWhile(fn($char) => preg_match('/\s/', $char));
 
-//            if ($cursorPosition >= $srcLength) break; // End of input check
+            //            if ($cursorPosition >= $srcLength) break; // End of input check
 
             $char = $src[$cursorPosition];
 

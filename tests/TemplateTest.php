@@ -11,7 +11,7 @@ use Codewithkyrian\Jinja\Exceptions\ParserException;
 use Codewithkyrian\Jinja\Exceptions\RuntimeException;
 use Codewithkyrian\Jinja\Exceptions\SyntaxError;
 
-describe('Lexical Errors', function (){
+describe('Lexical Errors', function () {
     test('Missing closing curly brace', function () {
         $text = "{{ variable";
         expect(fn() => Lexer::tokenize($text))->toThrow(SyntaxError::class);
@@ -53,17 +53,17 @@ describe('Parsing Errors', function () {
         expect(fn() => Parser::make($tokens)->parse())->toThrow(SyntaxError::class);
     });
 
-//    test('Missing variable in for loop', function () {
-//        $text = "{% for %}\n    Content\n{% endfor %}";
-//        $tokens = Lexer::tokenize($text);
-//        expect(fn() => Parser::make($tokens)->parse())->toThrow(ParserException::class);
-//    });
+    //    test('Missing variable in for loop', function () {
+    //        $text = "{% for %}\n    Content\n{% endfor %}";
+    //        $tokens = Lexer::tokenize($text);
+    //        expect(fn() => Parser::make($tokens)->parse())->toThrow(ParserException::class);
+    //    });
 
-//    test('Unclosed parentheses in expression', function () {
-//        $text = "{{ (variable + 1 }}";
-//        $tokens = Lexer::tokenize($text);
-//        expect(fn() => Parser::make($tokens)->parse())->toThrow(SyntaxError::class);
-//    });
+    //    test('Unclosed parentheses in expression', function () {
+    //        $text = "{{ (variable + 1 }}";
+    //        $tokens = Lexer::tokenize($text);
+    //        expect(fn() => Parser::make($tokens)->parse())->toThrow(SyntaxError::class);
+    //    });
 
     test('Invalid variable name', function () {
         $text = "{{ 1variable }}";
@@ -71,11 +71,11 @@ describe('Parsing Errors', function () {
         expect(fn() => Parser::make($tokens)->parse())->toThrow(ParserException::class);
     });
 
-//    test('Invalid control structure usage', function () {
-//        $text = "{% if %}Content{% endif %}";
-//        $tokens = Lexer::tokenize($text);
-//        expect(fn() => Parser::make($tokens)->parse())->toThrow(SyntaxError::class);
-//    });
+    //    test('Invalid control structure usage', function () {
+    //        $text = "{% if %}Content{% endif %}";
+    //        $tokens = Lexer::tokenize($text);
+    //        expect(fn() => Parser::make($tokens)->parse())->toThrow(SyntaxError::class);
+    //    });
 });
 
 describe('Runtime Errors', function () {
@@ -113,7 +113,7 @@ describe('Runtime Errors', function () {
         $interpreter = new Interpreter($env);
 
         $tokens = Lexer::tokenize("{% set 42 = variable %}");
-        $ast =Parser::make($tokens)->parse();
+        $ast = Parser::make($tokens)->parse();
         expect(fn() => $interpreter->run($ast))->toThrow(RuntimeException::class);
-    }); 
+    });
 });

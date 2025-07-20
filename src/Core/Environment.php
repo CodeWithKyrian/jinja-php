@@ -70,6 +70,7 @@ class Environment
             },
             'false' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && !$operand->value,
             'true' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && $operand->value,
+            'string' => fn(RuntimeValue $operand) => $operand->type === "StringValue",
             'number' => fn(RuntimeValue $operand) => $operand->type === "NumericValue",
             'integer' => function (RuntimeValue $operand) {
                 if ($operand->type !== "NumericValue") {
@@ -102,6 +103,12 @@ class Environment
             'equalto' => function (RuntimeValue $a, RuntimeValue $b) {
                 return $a->value === $b->value;
             },
+            'eq' => function (RuntimeValue $a, RuntimeValue $b) {
+                return $a->value === $b->value;
+            },
+            'ne' => function (RuntimeValue $a, RuntimeValue $b) {
+                return $a->value !== $b->value;
+            }
         ];
     }
 
@@ -155,6 +162,9 @@ class Environment
     }
 
 
+    /**
+     * Helper function to convert a PHP value to a runtime value.
+     */
     public static function convertToRuntimeValues(mixed $input): RuntimeValue
     {
         if (is_numeric($input)) {
@@ -170,30 +180,23 @@ class Environment
         }
 
         if (is_callable($input)) {
-            // Wrap the PHP callable in a runtime function value
             return new FunctionValue(function ($args, $scope) use ($input) {
-                // Assuming args are also runtime values; extract their inner values for the callable
-                $plainArgs = array_map(function ($arg) {
-                    return $arg->value;
-                }, $args);
+                $plainArgs = array_map(fn($arg) => $arg->value, $args);
                 $result = call_user_func_array($input, $plainArgs);
-                // Convert the result back to a runtime value
                 return $this->convertToRuntimeValues($result);
             });
         }
 
         if (is_array($input)) {
-            if (array_keys($input) !== range(0, count($input) - 1)) {
-                // Associative array, treat as ObjectValue
-                $convertedItems = [];
-                foreach ($input as $key => $value) {
-                    $convertedItems[$key] = self::convertToRuntimeValues($value);
-                }
-                return new ObjectValue($convertedItems);
-            } else {
-                // Sequential array, treat as ArrayValue
+            if (array_is_list($input)) {
                 return new ArrayValue(array_map(self::convertToRuntimeValues(...), $input));
             }
+
+            $convertedItems = [];
+            foreach ($input as $key => $value) {
+                $convertedItems[$key] = self::convertToRuntimeValues($value);
+            }
+            return new ObjectValue($convertedItems);
         }
 
         if (is_callable($input)) {
@@ -213,5 +216,4 @@ class Environment
 
         throw new RuntimeException("Cannot convert to runtime value: Unsupported type");
     }
-
 }

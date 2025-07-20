@@ -2,17 +2,20 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\Core;
 
 use Codewithkyrian\Jinja\AST\BinaryExpression;
 use Codewithkyrian\Jinja\AST\CallExpression;
+use Codewithkyrian\Jinja\AST\Expression;
 use Codewithkyrian\Jinja\AST\FilterExpression;
 use Codewithkyrian\Jinja\AST\ForStatement;
 use Codewithkyrian\Jinja\AST\Identifier;
 use Codewithkyrian\Jinja\AST\IfStatement;
+use Codewithkyrian\Jinja\AST\KeywordArgumentExpression;
+use Codewithkyrian\Jinja\AST\Macro;
 use Codewithkyrian\Jinja\AST\MemberExpression;
 use Codewithkyrian\Jinja\AST\Program;
+use Codewithkyrian\Jinja\AST\SelectExpression;
 use Codewithkyrian\Jinja\AST\SetStatement;
 use Codewithkyrian\Jinja\AST\SliceExpression;
 use Codewithkyrian\Jinja\AST\Statement;
@@ -24,6 +27,7 @@ use Codewithkyrian\Jinja\Exceptions\SyntaxError;
 use Codewithkyrian\Jinja\Runtime\ArrayValue;
 use Codewithkyrian\Jinja\Runtime\BooleanValue;
 use Codewithkyrian\Jinja\Runtime\FunctionValue;
+use Codewithkyrian\Jinja\Runtime\KeywordArgumentsValue;
 use Codewithkyrian\Jinja\Runtime\NullValue;
 use Codewithkyrian\Jinja\Runtime\NumericValue;
 use Codewithkyrian\Jinja\Runtime\ObjectValue;
@@ -39,7 +43,7 @@ class Interpreter
 {
     private Environment $global;
 
-    public function __construct(Environment $env = null)
+    public function __construct(?Environment $env = null)
     {
         $this->global = $env ?? new Environment();
     }
@@ -65,6 +69,9 @@ class Interpreter
 
             case "For":
                 return $this->evaluateFor($statement, $environment);
+
+            case "Macro":
+                return $this->evaluateMacro($statement, $environment);
 
             case "NumericLiteral":
                 return new NumericValue($statement->value);
@@ -176,7 +183,7 @@ class Interpreter
                 case "%":
                     return new NumericValue($left->value % $right->value);
 
-                // Comparison operators
+                    // Comparison operators
                 case "<":
                     return new BooleanValue($left->value < $right->value);
                 case ">":
@@ -240,6 +247,31 @@ class Interpreter
         throw new SyntaxError("Unknown operator: " . $node->operator->value);
     }
 
+    /**
+     * Evaluates the arguments of a call expression.
+     * @param Expression[] $args
+     * @param Environment $environment
+     * @return array<RuntimeValue[], array<string, RuntimeValue>>
+     */
+    private function evaluateArguments(array $args, Environment $environment): array
+    {
+        $positionalArguments = [];
+        $keywordArguments = [];
+
+        foreach ($args as $argument) {
+            if ($argument instanceof KeywordArgumentExpression) {
+                $keywordArguments[$argument->key->value] = $this->evaluate($argument->value, $environment);
+            } else {
+                if (count($keywordArguments) > 0) {
+                    throw new \Exception("Positional arguments must come before keyword arguments");
+                }
+                $positionalArguments[] = $this->evaluate($argument, $environment);
+            }
+        }
+
+        return [$positionalArguments, $keywordArguments];
+    }
+
 
     /**
      * Evaluates expressions following the filter operation type.
@@ -251,7 +283,10 @@ class Interpreter
         $operand = $this->evaluate($node->operand, $environment);
 
         if ($node->filter instanceof Identifier) {
-            // ArrayValue filters
+            if ($node->filter->value === 'tojson') {
+                return new StringValue(json_encode($operand));
+            }
+
             if ($operand instanceof ArrayValue) {
                 switch ($node->filter->value) {
                     case "list":
@@ -293,6 +328,16 @@ class Interpreter
                     "title" => new StringValue(toTitleCase($operand->value)),
                     "capitalize" => new StringValue(ucfirst($operand->value)),
                     "trim" => new StringValue(trim($operand->value)),
+                    "indent" => new StringValue(
+                        implode(
+                            "\n",
+                            array_map(function ($x, $i) {
+                                // By default, don't indent the first line or empty lines
+                                return $i === 0 || $x === "" ? $x : "    " . $x;
+                            }, explode("\n", $operand->value), range(0, count(explode("\n", $operand->value)) - 1))
+                        )
+                    ),
+                    "string" => $operand,
                     default => throw new \Exception("Unknown StringValue filter: {$node->filter->value}"),
                 };
             }
@@ -333,7 +378,11 @@ class Interpreter
                 throw new \Exception("Unknown filter: {$filter->callee->type}");
             }
 
-            $filterName = $filter->callee->value;
+            $filterName = $filter->callee instanceof Identifier ? $filter->callee->value : throw new \Exception("Unknown filter: {$filter->callee->type}");
+
+            if ($filterName === "tojson") {
+                return new StringValue(json_encode($operand));
+            }
 
             if ($operand instanceof ArrayValue) {
                 switch ($filterName) {
@@ -381,13 +430,61 @@ class Interpreter
                         }
 
                         return new ArrayValue($filtered);
+
+                    case "map":
+                        [$_, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+
+                        if (array_key_exists("attribute", $kwargs)) {
+                            $attr = $kwargs["attribute"];
+                            if (!($attr instanceof StringValue)) {
+                                throw new \Exception("attribute must be a string");
+                            }
+
+                            $defaultValue = $kwargs["default"] ?? new UndefinedValue();
+
+                            $mapped = array_map(function ($item) use ($attr, $defaultValue) {
+                                if (!($item instanceof ObjectValue)) {
+                                    throw new \Exception("items in map must be an object");
+                                }
+
+                                return $item->value[$attr->value] ?? $defaultValue;
+                            }, $operand->value);
+
+                            return new ArrayValue($mapped);
+                        } else {
+                            throw new \Exception("`map` expressions without `attribute` set are not currently supported.");
+                        }
+
                     default:
                         throw new \Exception("Unknown ArrayValue filter: $filterName");
+                }
+            } elseif ($operand instanceof StringValue) {
+                switch ($filterName) {
+                    case "indent":
+                        [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+
+                        $width = $args[0] ?? $kwargs["width"] ?? new NumericValue(4);
+                        if (!($width instanceof NumericValue)) {
+                            throw new \Exception("width must be a number");
+                        }
+
+                        $first = $args[1] ?? $kwargs["first"] ?? new BooleanValue(false);
+                        $blank = $args[2] ?? $kwargs["blank"] ?? new BooleanValue(false);
+
+                        $lines = explode("\n", $operand->value);
+                        $indent = str_repeat(" ", $width->value);
+                        $indented = array_map(function ($x, $i) use ($first, $blank, $indent) {
+                            return (!($first->value) && $i === 0) || (!($blank->value) && $x === "") ? $x : $indent . $x;
+                        }, $lines, range(0, count($lines) - 1));
+
+                        return new StringValue(implode("\n", $indented));
+
+                    default:
+                        throw new \Exception("Unknown StringValue filter: $filterName");
                 }
             } else {
                 throw new \Exception("Cannot apply filter \"$filterName\" to type: $operand->type");
             }
-
         }
 
         throw new \Exception("Unknown filter: {$node->filter->type}");
@@ -451,28 +548,18 @@ class Interpreter
 
     private function evaluateCallExpression(CallExpression $expr, Environment $environment): RuntimeValue
     {
-        $args = [];
-        $kwargs = [];
-        foreach ($expr->args as $argument) {
-            if ($argument->type === "KeywordArgumentExpression") {
-                $kwarg = $this->evaluate($argument->value, $environment);
-                $kwargs[$argument->key->value] = $kwarg;
-            } else {
-                $args[] = $this->evaluate($argument, $environment);
-            }
-        }
+        [$args, $kwargs] = $this->evaluateArguments($expr->args, $environment);
+
         if (!empty($kwargs)) {
-            $args[] = new ObjectValue($kwargs);
+            $args[] = new KeywordArgumentsValue($kwargs);
         }
 
-        /** @var FunctionValue $fn */
         $fn = $this->evaluate($expr->callee, $environment);
-        if ($fn->type !== "FunctionValue") {
+        if (!($fn instanceof FunctionValue)) {
             throw new RuntimeException("Cannot call something that is not a function: got $fn->type");
         }
         return call_user_func($fn->value, $args, $environment);
     }
-
 
     private function evaluateSliceExpression(RuntimeValue $object, SliceExpression $expr, Environment $environment): ArrayValue|StringValue
     {
@@ -507,6 +594,7 @@ class Interpreter
     private function evaluateMemberExpression(MemberExpression $expr, Environment $environment): RuntimeValue
     {
         $object = $this->evaluate($expr->object, $environment);
+
         if ($expr->computed) {
             if ($expr->property->type == "SliceExpression") {
                 return $this->evaluateSliceExpression($object, $expr->property, $environment);
@@ -517,7 +605,6 @@ class Interpreter
             $property = new StringValue($expr->property->value);
         }
 
-        // Assuming ObjectValue wraps an associative array
         if ($object instanceof ObjectValue) {
             if (!($property instanceof StringValue)) {
                 throw new RuntimeException("Cannot access property with non-string: got {$property->type}");
@@ -525,9 +612,22 @@ class Interpreter
             $value = $object->value[$property->value] ?? $object->builtins[$property->value];
         } else if ($object instanceof ArrayValue || $object instanceof StringValue) {
             if ($property instanceof NumericValue) {
-                $value = $object->value[$property->value];
+                $index = $property->value;
+                $length = count($object->value);
+
+                // Handle negative indices (Python-style)
+                if ($index < 0) {
+                    $index = $length + $index;
+                }
+
+                // Check bounds
+                if ($index < 0 || $index >= $length) {
+                    throw new RuntimeException("Array index out of bounds: {$property->value}");
+                }
+
+                $value = $object->value[$index];
                 if ($object instanceof StringValue) {
-                    $value = new StringValue($object->value[$property->value]);
+                    $value = new StringValue($object->value[$index]);
                 }
             } else if ($property instanceof StringValue) {
                 $value = $object->builtins[$property->value];
@@ -574,35 +674,32 @@ class Interpreter
 
     private function evaluateFor(ForStatement $node, Environment $environment): StringValue
     {
-        // Create a new scope for the loop
         $scope = new Environment($environment);
 
-        $iterable = $this->evaluate($node->iterable, $scope);
+        $iterable = $test = null;
+        if ($node->iterable instanceof SelectExpression) {
+            $iterable = $this->evaluate($node->iterable->lhs, $scope);
+            $test = $node->iterable->test;
+        } else {
+            $iterable = $this->evaluate($node->iterable, $scope);
+        }
+
         if (!($iterable instanceof ArrayValue)) {
             throw new RuntimeException("Expected iterable type in for loop: got $iterable->type");
         }
 
-        $result = "";
+        $items = [];
+        $scopeUpdateFunctions = [];
 
         foreach ($iterable->value as $i => $current) {
-            // Construct the loop variable
-            $length = count($iterable->value);
-            $loop = [
-                "index" => new NumericValue($i + 1),
-                "index0" => new NumericValue($i),
-                "revindex" => new NumericValue($length - $i),
-                "revindex0" => new NumericValue($length - $i - 1),
-                "first" => new BooleanValue($i === 0),
-                "last" => new BooleanValue($i === $length - 1),
-                "length" => new NumericValue($length),
-                "previtem" => $i > 0 ? $iterable->value[$i - 1] : new UndefinedValue(),
-                "nextitem" => $i < $length - 1 ? $iterable->value[$i + 1] : new UndefinedValue(),
-            ];
-            $scope->setVariable("loop", new ObjectValue($loop));
+            $loopScope = new Environment($scope);
 
-            // Set the loop variable for this iteration
+            $current = $iterable->value[$i];
+
+            $scopeUpdateFunction = null;
+
             if ($node->loopvar instanceof Identifier) {
-                $scope->setVariable($node->loopvar->value, $current);
+                $scopeUpdateFunction = fn($scope) => $scope->setVariable($node->loopvar->value, $current);
             } elseif ($node->loopvar instanceof TupleLiteral) {
                 if (!($current instanceof ArrayValue)) {
                     throw new RuntimeException("Cannot unpack non-iterable type");
@@ -614,21 +711,102 @@ class Interpreter
                     throw new RuntimeException(sprintf("Too %s items to unpack", $loopVarLength > $currentLength ? "few" : "many"));
                 }
 
-                foreach ($node->loopvar->value as $j => $identifier) {
-                    if (!($identifier instanceof Identifier)) {
-                        throw new RuntimeException("Cannot unpack non-identifier type: {$identifier->type}");
+                $scopeUpdateFunction = function ($scope) use ($node, $current) {
+                    foreach ($node->loopvar->value as $j => $identifier) {
+                        if (!($identifier instanceof Identifier)) {
+                            throw new RuntimeException("Cannot unpack non-identifier type: {$identifier->type}");
+                        }
+                        $scope->setVariable($identifier->value, $current->value[$j]);
                     }
-                    $scope->setVariable($identifier->value, $current->value[$j]);
+                };
+            } else {
+                throw new RuntimeException("Invalid loop variable type: {$node->loopvar->type}");
+            }
+
+            if ($test !== null) {
+                $scopeUpdateFunction($loopScope);
+
+                $testValue = $this->evaluate($test, $loopScope);
+                if (!$testValue->evaluateAsBool()->value) {
+                    continue;
                 }
             }
 
-            // Evaluate the body of the loop
+            $items[] = $current;
+            $scopeUpdateFunctions[] = $scopeUpdateFunction;
+        }
+
+        $result = "";
+        $noIteration = true;
+        $length = count($items);
+
+        for ($i = 0; $i < $length; ++$i) {
+            $loop = [
+                "index" => new NumericValue($i + 1),
+                "index0" => new NumericValue($i),
+                "revindex" => new NumericValue($length - $i),
+                "revindex0" => new NumericValue($length - $i - 1),
+                "first" => new BooleanValue($i === 0),
+                "last" => new BooleanValue($i === $length - 1),
+                "length" => new NumericValue($length),
+                "previtem" => $i > 0 ? $items[$i - 1] : new UndefinedValue(),
+                "nextitem" => $i < $length - 1 ? $items[$i + 1] : new UndefinedValue(),
+            ];
+
+            $scope->setVariable("loop", new ObjectValue($loop));
+
+            $scopeUpdateFunction = $scopeUpdateFunctions[$i];
+            $scopeUpdateFunction($scope);
             $evaluated = $this->evaluateBlock($node->body, $scope);
             $result .= $evaluated->value;
+
+            $noIteration = false; // At least one iteration took place
+        }
+
+        if ($noIteration) {
+            $defaultEvaluated = $this->evaluateBlock($node->defaultBlock, $scope);
+            $result .= $defaultEvaluated->value;
         }
 
         return new StringValue($result);
     }
 
+    private function evaluateMacro(Macro $node, Environment $environment): NullValue
+    {
+        $environment->setVariable($node->name->value, new FunctionValue(function ($args, $scope) use ($node, $environment) {
+            $macroScope = new Environment($scope);
+            $args = array_slice($args, 0, -1);
 
+            $kwargs = $args[count($args) - 1];
+
+            if (!($kwargs instanceof KeywordArgumentsValue)) {
+                $kwargs = null;
+            }
+
+            for ($i = 0; $i < count($node->args); ++$i) {
+                $nodeArg = $node->args[$i];
+                $passedArg = $args[$i];
+
+                if ($nodeArg instanceof Identifier) {
+                    if (!$passedArg) {
+                        throw new RuntimeException("Missing positional argument: {$nodeArg->value}");
+                    }
+
+                    $macroScope->setVariable($nodeArg->value, $passedArg);
+                } elseif ($nodeArg instanceof KeywordArgumentExpression) {
+                    $value = $passedArg
+                        ?? $kwargs->value[$nodeArg->key->value]
+                        ?? $this->evaluate($nodeArg->value, $macroScope);
+                    $macroScope->setVariable($nodeArg->key->value, $value);
+                } else {
+                    throw new RuntimeException("Unknown argument type: {$nodeArg->type}");
+                }
+            }
+
+            return $this->evaluateBlock($node->body, $macroScope);
+        }));
+
+        // Macros are not evaluated immediately, so we return null
+        return new NullValue();
+    }
 }

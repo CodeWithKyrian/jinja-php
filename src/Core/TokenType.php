@@ -13,7 +13,7 @@ enum TokenType: string
 
     case Text = "Text";
     case NumericLiteral = "NumericLiteral"; // e.g., 123
-    case BooleanLiteral = "BooleanLiteral";// true or false
+    case BooleanLiteral = "BooleanLiteral"; // true or false
     case StringLiteral = "StringLiteral"; // 'string'
     case Identifier = "Identifier"; // Variables, functions, etc.
     case Equals = "Equals"; // =
@@ -38,7 +38,7 @@ enum TokenType: string
     case ComparisonBinaryOperator = "ComparisonBinaryOperator"; // < > <= >= == !=
     case UnaryOperator = "UnaryOperato"; // ! - +
 
-    // Keywords
+        // Keywords
     case Set = "Set";
     case If = "If";
     case For = "For";
@@ -52,8 +52,6 @@ enum TokenType: string
     case And = "And";
     case Or = "Or";
     case Not = "UnaryOperator";
-
-
-
-
+    case Macro = "Macro";
+    case EndMacro = "EndMacro";
 }

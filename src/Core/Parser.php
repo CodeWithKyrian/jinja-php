@@ -13,10 +13,12 @@ use Codewithkyrian\Jinja\AST\ForStatement;
 use Codewithkyrian\Jinja\AST\Identifier;
 use Codewithkyrian\Jinja\AST\IfStatement;
 use Codewithkyrian\Jinja\AST\KeywordArgumentExpression;
+use Codewithkyrian\Jinja\AST\Macro;
 use Codewithkyrian\Jinja\AST\MemberExpression;
 use Codewithkyrian\Jinja\AST\NumericLiteral;
 use Codewithkyrian\Jinja\AST\ObjectLiteral;
 use Codewithkyrian\Jinja\AST\Program;
+use Codewithkyrian\Jinja\AST\SelectExpression;
 use Codewithkyrian\Jinja\AST\SetStatement;
 use Codewithkyrian\Jinja\AST\SliceExpression;
 use Codewithkyrian\Jinja\AST\Statement;
@@ -58,6 +60,10 @@ class Parser
      */
     private function expect(TokenType $type, string $error)
     {
+        if ($this->current >= count($this->tokens)) {
+            throw new ParserException("Parser Error: {$error}. Unexpected end of input.");
+        }
+
         $token = $this->tokens[$this->current++];
 
         if ($token->type !== $type) {
@@ -79,6 +85,10 @@ class Parser
 
     private function parseAny()
     {
+        if ($this->current >= count($this->tokens)) {
+            throw new ParserException("Unexpected end of input");
+        }
+
         $token = $this->tokens[$this->current];
 
         return match ($token->type) {
@@ -93,14 +103,18 @@ class Parser
 
     private function not(...$types): bool
     {
-        return $this->current + count($types) <= count($this->tokens)
-            && array_some($types, fn($type, $i) => $type !== $this->tokens[$this->current + $i]->type);
+        if ($this->current + count($types) > count($this->tokens)) {
+            return true; // If we're past the end, we're "not" any of these types
+        }
+        return array_some($types, fn($type, $i) => $type !== $this->tokens[$this->current + $i]->type);
     }
 
     private function is(...$types): bool
     {
-        return $this->current + count($types) <= count($this->tokens)
-            && array_every($types, fn($type, $i) => $type === $this->tokens[$this->current + $i]->type);
+        if ($this->current + count($types) > count($this->tokens)) {
+            return false; // If we're past the end, we can't match any types
+        }
+        return array_every($types, fn($type, $i) => $type === $this->tokens[$this->current + $i]->type);
     }
 
     private function parseText(): StringLiteral
@@ -118,7 +132,6 @@ class Parser
 
         $tokenType = $this->tokens[$this->current]->type;
 
-
         switch ($tokenType) {
             case TokenType::Set:
                 $this->current++;
@@ -131,6 +144,14 @@ class Parser
                 $result = $this->parseIfStatement();
                 $this->expect(TokenType::OpenStatement, "Expected {% token");
                 $this->expect(TokenType::EndIf, "Expected endif token");
+                $this->expect(TokenType::CloseStatement, "Expected %} token");
+                break;
+
+            case TokenType::Macro:
+                $this->current++;
+                $result = $this->parseMacroStatement();
+                $this->expect(TokenType::OpenStatement, "Expected {% token");
+                $this->expect(TokenType::EndMacro, "Expected endmacro token");
                 $this->expect(TokenType::CloseStatement, "Expected %} token");
                 break;
 
@@ -187,8 +208,9 @@ class Parser
 
         // Keep parsing if body until we reach the first {% elif %} or {% else %} or {% endif %}
         while (!(
-            isset($this->tokens[$this->current]) &&
+            $this->current < count($this->tokens) &&
             $this->tokens[$this->current]->type === TokenType::OpenStatement &&
+            $this->current + 1 < count($this->tokens) &&
             in_array($this->tokens[$this->current + 1]->type, [TokenType::ElseIf, TokenType::Else, TokenType::EndIf])
         )) {
             $body[] = $this->parseAny();
@@ -196,8 +218,9 @@ class Parser
 
         // Alternate branch: Check for {% elif %} or {% else %}
         if (
-            isset($this->tokens[$this->current]) &&
+            $this->current < count($this->tokens) &&
             $this->tokens[$this->current]->type === TokenType::OpenStatement &&
+            $this->current + 1 < count($this->tokens) &&
             $this->tokens[$this->current + 1]->type !== TokenType::EndIf
         ) {
             $this->current++; // consume {% token
@@ -210,8 +233,9 @@ class Parser
 
                 // keep going until we hit {% endif %}
                 while (!(
-                    isset($this->tokens[$this->current]) &&
+                    $this->current < count($this->tokens) &&
                     $this->tokens[$this->current]->type === TokenType::OpenStatement &&
+                    $this->current + 1 < count($this->tokens) &&
                     $this->tokens[$this->current + 1]->type === TokenType::EndIf
                 )) {
                     $alternate[] = $this->parseAny();
@@ -220,6 +244,26 @@ class Parser
         }
 
         return new IfStatement($test, $body, $alternate);
+    }
+
+    private function parseMacroStatement(): Macro
+    {
+        $name = $this->parsePrimaryExpression();
+        if (!($name instanceof Identifier)) {
+            throw new SyntaxError("Expected identifier following macro statement");
+        }
+
+        $args = $this->parseArgs();
+        $this->expect(TokenType::CloseStatement, "Expected closing statement token");
+
+        $body = [];
+
+        // Keep going until we hit {% endmacro %}
+        while ($this->not(TokenType::OpenStatement, TokenType::EndMacro)) {
+            $body[] = $this->parseAny();
+        }
+
+        return new Macro($name, $args, $body);
     }
 
     private function parseExpressionSequence(bool $primary = false): Statement
@@ -245,7 +289,7 @@ class Parser
     private function parseForStatement(): ForStatement
     {
         // e.g., `message` in `for message in messages`
-        $loopVariable = $this->parseExpressionSequence(true); // should be an identifier
+        $loopVariable = $this->parseExpressionSequence(true); // should be an identifier/tuple
         if (!($loopVariable instanceof Identifier || $loopVariable instanceof TupleLiteral)) {
             throw new SyntaxError("Expected identifier/tuple for the loop variable, got {$loopVariable->type} instead");
         }
@@ -258,30 +302,48 @@ class Parser
 
         $body = [];
 
-        // Keep going until we hit {% endfor
-        while ($this->not(TokenType::OpenStatement, TokenType::EndFor)) {
+        // Keep going until we hit {% endfor or {% else %}
+        while ($this->not(TokenType::OpenStatement, TokenType::EndFor) && $this->not(TokenType::OpenStatement, TokenType::Else)) {
             $body[] = $this->parseAny();
         }
 
-        return new ForStatement($loopVariable, $iterable, $body);
+        $alternate = [];
+
+        if ($this->is(TokenType::OpenStatement, TokenType::Else)) {
+            $this->current++; // consume {%
+            $this->current++; // consume else
+            $this->expect(TokenType::CloseStatement, "Expected closing statement token");
+
+            // Keep going until we hit {% endfor %}
+            while ($this->not(TokenType::OpenStatement, TokenType::EndFor)) {
+                $alternate[] = $this->parseAny();
+            }
+        }
+
+        return new ForStatement($loopVariable, $iterable, $body, $alternate);
     }
 
     private function parseExpression(): Statement
     {
         // Choose parse function with the lowest precedence
-        return $this->parseTernaryExpression();
+        return $this->parseIfExpression();
     }
 
-    private function parseTernaryExpression(): Statement
+    private function parseIfExpression(): Statement
     {
         $a = $this->parseLogicalOrExpression();
 
         if ($this->is(TokenType::If)) {
             $this->current++;
             $predicate = $this->parseLogicalOrExpression();
-            $this->expect(TokenType::Else, "Expected else token");
-            $b = $this->parseLogicalOrExpression();
-            return new IfStatement($predicate, [$a], [$b]);
+
+            if ($this->is(TokenType::Else)) {
+                $this->current++; // consume else
+                $b = $this->parseLogicalOrExpression();
+                return new IfStatement($predicate, [$a], [$b]);
+            } else {
+                return new SelectExpression($a, $predicate);
+            }
         }
         return $a;
     }
@@ -327,7 +389,8 @@ class Parser
     private function parseComparisonExpression(): Statement
     {
         $left = $this->parseAdditiveExpression();
-        while ($this->is(TokenType::ComparisonBinaryOperator)
+        while (
+            $this->is(TokenType::ComparisonBinaryOperator)
             || $this->is(TokenType::In)
             || $this->is(TokenType::NotIn)
         ) {
@@ -451,12 +514,10 @@ class Parser
                 // computed (i.e., bracket notation: obj[expr])
                 $property = $this->parseMemberExpressionArgumentsList();
                 $this->expect(TokenType::CloseSquareBracket, "Expected closing square bracket");
-            }
-            else{
+            } else {
                 // non-computed (i.e., dot notation: obj.expr)
                 $property = $this->parsePrimaryExpression();
-                if($property->type !== "Identifier")
-                {
+                if ($property->type !== "Identifier") {
                     throw new SyntaxError("Expected identifier following dot operator");
                 }
             }
@@ -518,6 +579,10 @@ class Parser
 
     private function parsePrimaryExpression(): Statement
     {
+        if ($this->current >= count($this->tokens)) {
+            throw new SyntaxError("Unexpected end of input");
+        }
+
         $token = $this->tokens[$this->current];
         switch ($token->type) {
             case TokenType::NumericLiteral:
@@ -530,7 +595,7 @@ class Parser
 
             case TokenType::BooleanLiteral:
                 $this->current++;
-                return new BooleanLiteral($token->value === "true");
+                return new BooleanLiteral(strtolower($token->value) === "true");
 
             case TokenType::Identifier:
                 $this->current++;
@@ -576,6 +641,4 @@ class Parser
                 throw new SyntaxError("Unexpected token: {$token->type}");
         }
     }
-
-
 }

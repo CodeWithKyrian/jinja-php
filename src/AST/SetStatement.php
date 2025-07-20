@@ -12,7 +12,5 @@ class SetStatement extends Statement
     public function __construct(
         public Expression $assignee,
         public Expression $value
-    )
-    {
-    }
+    ) {}
 }

@@ -28,6 +28,8 @@ class Token
         // Literals
         'true' => TokenType::BooleanLiteral,
         'false' => TokenType::BooleanLiteral,
+        'True' => TokenType::BooleanLiteral,
+        'False' => TokenType::BooleanLiteral,
     ];
 
     public const ORDERED_MAPPING_TABLE = [
@@ -84,10 +86,5 @@ class Token
     public function __construct(
         public readonly string    $value,
         public readonly TokenType $type
-    )
-    {
-    }
-
-
-
+    ) {}
 }

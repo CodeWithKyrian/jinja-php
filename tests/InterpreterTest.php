@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 use Codewithkyrian\Jinja\Core\Environment;
 use Codewithkyrian\Jinja\Core\Interpreter;
 use Codewithkyrian\Jinja\Core\Lexer;
@@ -10,7 +9,6 @@ use Codewithkyrian\Jinja\Core\Parser;
 
 beforeEach(function () {
     $this->env = new Environment();
-    $this->env->set("True", true);
 });
 
 test('should handle whitespace control', function ($template, $data, $lstripBlocks, $trimBlocks, $target) {
