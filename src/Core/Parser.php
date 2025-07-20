@@ -191,11 +191,23 @@ class Parser
 
         if ($this->is(TokenType::Equals)) {
             $this->current++;
-            $value = $this->parseSetStatement();
+            $value = $this->parseExpression();
 
-            return new SetStatement($left, $value);
+            return new SetStatement($left, $value, []);
+        } else {
+            $body = [];
+
+            $this->expect(TokenType::CloseStatement, "Expected closing statement token");
+
+            while ($this->not(TokenType::OpenStatement, TokenType::EndSet)) {
+                $body[] = $this->parseAny();
+            }
+
+            $this->expect(TokenType::OpenStatement, "Expected opening statement token");
+            $this->expect(TokenType::EndSet, "Expected endset token");
+
+            return new SetStatement($left, null, $body);
         }
-        return $left;
     }
 
     private function parseIfStatement(): IfStatement

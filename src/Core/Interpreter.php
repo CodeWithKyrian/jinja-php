@@ -317,6 +317,10 @@ class Interpreter
                             };
                         });
                         return new ArrayValue($operand->value);
+                    case "join":
+                        return new StringValue(implode('', $operand->value));
+                    case "string":
+                        return new StringValue(json_encode($operand->value));
                     default:
                         throw new \Exception("Unknown ArrayValue filter: {$node->filter->value}");
                 }
@@ -670,7 +674,8 @@ class Interpreter
 
     private function evaluateSet(SetStatement $node, Environment $environment): NullValue
     {
-        $rhs = $this->evaluate($node->value, $environment);
+        $rhs = $node->value ? $this->evaluate($node->value, $environment) : $this->evaluateBlock($node->body, $environment);
+
         if ($node->assignee->type === "Identifier") {
             $environment->setVariable($node->assignee->value, $rhs);
         } elseif ($node->assignee->type === "MemberExpression") {

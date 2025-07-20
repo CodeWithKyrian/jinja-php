@@ -47,6 +47,7 @@ enum TokenType: string
     case Is = "Is";
     case NotIn = "NotIn";
     case Else = "Else";
+    case EndSet = "EndSet";
     case EndIf = "EndIf";
     case ElseIf = "ElseIf";
     case EndFor = "EndFor";

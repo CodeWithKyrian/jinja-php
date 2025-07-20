@@ -9,8 +9,14 @@ class SetStatement extends Statement
 {
     public string $type = "Set";
 
+    /**
+     * @param Expression $assignee
+     * @param ?Expression $value
+     * @param Statement[] $body
+     */
     public function __construct(
         public Expression $assignee,
-        public Expression $value
+        public ?Expression $value,
+        public array $body = []
     ) {}
 }

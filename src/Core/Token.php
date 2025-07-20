@@ -17,6 +17,7 @@ class Token
         'is' => TokenType::Is,
         'if' => TokenType::If,
         'else' => TokenType::Else,
+        'endset' => TokenType::EndSet,
         'endif' => TokenType::EndIf,
         'elif' => TokenType::ElseIf,
         'endfor' => TokenType::EndFor,
