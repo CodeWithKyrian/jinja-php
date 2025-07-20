@@ -40,6 +40,10 @@ class Lexer
         $template = preg_replace('/-#}\s*/', '#}', $template);
         $template = preg_replace('/\s*{#-/', '{#', $template);
 
+        // Handle the custom transformers-specific `generation` tag.
+        // See https://github.com/huggingface/transformers/pull/30650 for more information.
+        $template = preg_replace('/{%\s*(end)?generation\s*%}/', '', $template);
+
         return $template;
     }
 
