@@ -28,8 +28,10 @@ class Token
         // Literals
         'true' => TokenType::BooleanLiteral,
         'false' => TokenType::BooleanLiteral,
+        'none' => TokenType::NullLiteral,
         'True' => TokenType::BooleanLiteral,
         'False' => TokenType::BooleanLiteral,
+        'None' => TokenType::NullLiteral,
     ];
 
     public const ORDERED_MAPPING_TABLE = [

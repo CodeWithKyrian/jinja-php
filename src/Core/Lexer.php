@@ -121,10 +121,7 @@ class Lexer
             // Consume (and ignore) all whitespace inside Jinja statements or expressions
             $consumeWhile(fn($char) => preg_match('/\s/', $char));
 
-            //            if ($cursorPosition >= $srcLength) break; // End of input check
-
             $char = $src[$cursorPosition];
-
 
             // Check for unary operators
             if ($char === "-" || $char === "+") {
@@ -136,6 +133,7 @@ class Lexer
                     case TokenType::Identifier:
                     case TokenType::NumericLiteral:
                     case TokenType::BooleanLiteral:
+                    case TokenType::NullLiteral:
                     case TokenType::StringLiteral:
                     case TokenType::CloseParen:
                     case TokenType::CloseSquareBracket:

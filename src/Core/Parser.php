@@ -15,6 +15,7 @@ use Codewithkyrian\Jinja\AST\IfStatement;
 use Codewithkyrian\Jinja\AST\KeywordArgumentExpression;
 use Codewithkyrian\Jinja\AST\Macro;
 use Codewithkyrian\Jinja\AST\MemberExpression;
+use Codewithkyrian\Jinja\AST\NullLiteral;
 use Codewithkyrian\Jinja\AST\NumericLiteral;
 use Codewithkyrian\Jinja\AST\ObjectLiteral;
 use Codewithkyrian\Jinja\AST\Program;
@@ -541,16 +542,20 @@ class Parser
     private function parseTestExpression(): Statement
     {
         $operand = $this->parseFilterExpression();
+
         while ($this->is(TokenType::Is)) {
             $this->current++; // consume is
             $negate = $this->is(TokenType::Not);
+
             if ($negate) {
                 $this->current++; // consume not
             }
+
             $filter = $this->parsePrimaryExpression();
             if ($filter instanceof BooleanLiteral) {
-                // PHP version: treating boolean literals as identifiers might require manual handling
                 $filter = new Identifier((string)$filter->value);
+            } elseif ($filter instanceof NullLiteral) {
+                $filter = new Identifier("none");
             }
             if (!($filter instanceof Identifier)) {
                 throw new SyntaxError("Expected identifier for the test");
@@ -596,6 +601,10 @@ class Parser
             case TokenType::BooleanLiteral:
                 $this->current++;
                 return new BooleanLiteral(strtolower($token->value) === "true");
+
+            case TokenType::NullLiteral:
+                $this->current++;
+                return new NullLiteral();
 
             case TokenType::Identifier:
                 $this->current++;

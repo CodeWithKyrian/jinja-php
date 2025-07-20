@@ -14,6 +14,7 @@ enum TokenType: string
     case Text = "Text";
     case NumericLiteral = "NumericLiteral"; // e.g., 123
     case BooleanLiteral = "BooleanLiteral"; // true or false
+    case NullLiteral = "NullLiteral"; // null
     case StringLiteral = "StringLiteral"; // 'string'
     case Identifier = "Identifier"; // Variables, functions, etc.
     case Equals = "Equals"; // =

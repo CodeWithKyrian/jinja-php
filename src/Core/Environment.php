@@ -70,6 +70,7 @@ class Environment
             },
             'false' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && !$operand->value,
             'true' => fn(RuntimeValue $operand) => $operand->type === "BooleanValue" && $operand->value,
+            'null' => fn(RuntimeValue $operand) => $operand->type === "NullValue",
             'string' => fn(RuntimeValue $operand) => $operand->type === "StringValue",
             'number' => fn(RuntimeValue $operand) => $operand->type === "NumericValue",
             'integer' => function (RuntimeValue $operand) {

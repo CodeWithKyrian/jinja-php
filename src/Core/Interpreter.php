@@ -82,6 +82,9 @@ class Interpreter
             case "BooleanLiteral":
                 return new BooleanValue($statement->value);
 
+            case "NullLiteral":
+                return new NullValue();
+
             case "ArrayLiteral":
                 $values = array_map(function ($x) use ($environment) {
                     return $this->evaluate($x, $environment);
