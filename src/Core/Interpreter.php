@@ -385,20 +385,36 @@ class Interpreter
 
             if ($filterName === "tojson") {
                 return new StringValue(json_encode($operand));
+            } elseif ($filterName === "join") {
+                if ($operand instanceof StringValue) {
+                    $value = mb_str_split($operand->value);
+                } elseif ($operand instanceof ArrayValue) {
+                    $value = $operand->value;
+                } else {
+                    throw new \Exception("Cannot apply join filter to type: $operand->type");
+                }
+
+                [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+                $separator = $args[0] ?? $kwargs["separator"] ?? new StringValue("");
+
+                if (!($separator instanceof StringValue)) {
+                    throw new \Exception("separator must be a string");
+                }
+
+                return new StringValue(implode($separator->value, $value));
             }
 
             if ($operand instanceof ArrayValue) {
                 switch ($filterName) {
                     case "selectattr":
-                        // Check if all items in the array are instances of ObjectValue
+                    case "rejectattr":
                         if (array_some($operand->value, fn($x) => !($x instanceof ObjectValue))) {
-                            throw new \Exception("`selectattr` can only be applied to an array of objects");
+                            throw new \Exception("`$filterName` can only be applied to an array of objects");
                         }
 
                         if (array_some($filter->args, fn($x) => $x->type !== "StringLiteral")) {
-                            throw new \Exception("The arguments of `selectattr` must be strings");
+                            throw new \Exception("The arguments of `$filterName` must be strings");
                         }
-
 
                         [$attrExpr, $testNameExpr, $valueExpr] = $filter->args;
 
@@ -407,7 +423,7 @@ class Interpreter
                         $value = isset($valueExpr) ? $this->evaluate($valueExpr, $environment) : null;
 
                         if (!($attr instanceof StringValue)) {
-                            throw new \Exception("The attribute name of `selectattr` must be a string");
+                            throw new \Exception("The attribute name of `$filterName` must be a string");
                         }
 
                         $testFunction = null;
@@ -424,11 +440,16 @@ class Interpreter
 
                         $filtered = [];
                         foreach ($operand->value as $item) {
-                            $a = $item->value[$attr->value] ?? null;
-                            if ($a !== null) {
-                                if ($testFunction($a, $value)) {
-                                    $filtered[] = $item;
-                                }
+                            $attrValue = $item->value[$attr->value] ?? null;
+                            if ($attrValue === null) {
+                                continue;
+                            }
+
+                            $testResult = $testFunction($attrValue, $value);
+                            $shouldInclude = ($filterName === "selectattr") ? $testResult : !$testResult;
+
+                            if ($shouldInclude) {
+                                $filtered[] = $item;
                             }
                         }
 

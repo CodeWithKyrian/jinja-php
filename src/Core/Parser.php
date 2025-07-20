@@ -417,20 +417,26 @@ class Parser
 
     private function parseCallMemberExpression(): Statement
     {
-        $member = $this->parseMemberExpression();
+        $member = $this->parseMemberExpression($this->parsePrimaryExpression());
+
         if ($this->is(TokenType::OpenParen)) {
             return $this->parseCallExpression($member);
         }
+
         return $member;
     }
 
-    private function parseCallExpression($callee): CallExpression
+    private function parseCallExpression(Statement $callee): CallExpression
     {
-        $callExpression = new CallExpression($callee, $this->parseArgs());
+        $expression = new CallExpression($callee, $this->parseArgs());
+
+        $expression = $this->parseMemberExpression($expression); // foo->x()->y
+
         if ($this->is(TokenType::OpenParen)) {
-            $callExpression = $this->parseCallExpression($callExpression);
+            $expression = $this->parseCallExpression($expression); // foo->x()()
         }
-        return $callExpression;
+
+        return $expression;
     }
 
     /**
@@ -502,9 +508,8 @@ class Parser
         return $slices[0];
     }
 
-    private function parseMemberExpression(): Statement
+    private function parseMemberExpression(Statement $object): Statement
     {
-        $object = $this->parsePrimaryExpression();
 
         while ($this->is(TokenType::Dot) || $this->is(TokenType::OpenSquareBracket)) {
             $operator = $this->tokens[$this->current]; // . or [

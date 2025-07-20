@@ -31,10 +31,10 @@ class Template
     /**
      * Renders the template with the provided items as variables.
      *
-     * @param array $items Associative array of user-defined variables.
+     * @param ?array $items Associative array of user-defined variables.
      * @return string The rendered template.
      */
-    public function render(array $items): string
+    public function render(?array $items): string
     {
         // Create a new environment for this template
         $env = new Environment();
@@ -43,11 +43,13 @@ class Template
         $env->set('false', false);
         $env->set('true', true);
         $env->set('raise_exception', fn($args) => throw new RuntimeException($args));
-        $env->set('range', fn($args) => range($args[0], $args[1]));
+        $env->set('range', range(...));
 
         // Add user-defined variables
-        foreach ($items as $key => $value) {
-            $env->set($key, $value);
+        if ($items) {
+            foreach ($items as $key => $value) {
+                $env->set($key, $value);
+            }
         }
 
         $interpreter = new Interpreter($env);

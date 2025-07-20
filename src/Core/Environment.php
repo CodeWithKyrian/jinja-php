@@ -80,6 +80,7 @@ class Environment
                 return is_int($operand->value);
             },
             'iterable' => fn(RuntimeValue $operand) => $operand instanceof ArrayValue || $operand instanceof StringValue,
+            'mapping' => fn(RuntimeValue $operand) => $operand instanceof ObjectValue,
             'lower' => function (RuntimeValue $operand) {
                 if ($operand->type !== "StringValue") {
                     return false;
