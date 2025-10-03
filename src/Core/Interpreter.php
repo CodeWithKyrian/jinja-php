@@ -91,12 +91,12 @@ class Interpreter
             TupleLiteral::class => fn(TupleLiteral $s, Environment $environment) => new TupleValue(array_map(fn($x) => $this->evaluate($x, $environment), $s->value)),
             ObjectLiteral::class => function (ObjectLiteral $s, Environment $environment): ObjectValue {
                 $mapping = [];
-                foreach ($s->value as $key => $value) {
+                foreach ($s->value as $key) {
                     $evaluatedKey = $this->evaluate($key, $environment);
                     if (!($evaluatedKey instanceof StringValue)) {
                         throw new RuntimeException("Object keys must be strings");
                     }
-                    $mapping[$evaluatedKey->value] = $this->evaluate($value, $environment);
+                    $mapping[$evaluatedKey->value] = $this->evaluate($s->value[$key], $environment);
                 }
                 return new ObjectValue($mapping);
             },
