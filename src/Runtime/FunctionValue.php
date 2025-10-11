@@ -17,6 +17,6 @@ class FunctionValue extends RuntimeValue
 
     public function call(array $args, Environment $env): RuntimeValue
     {
-        return call_user_func($this->value, $args, $env);
+        return call_user_func_array($this->value, [...$args, $env]);
     }
 }

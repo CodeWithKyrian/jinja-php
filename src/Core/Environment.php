@@ -11,6 +11,7 @@ use Codewithkyrian\Jinja\Runtime\BooleanValue;
 use Codewithkyrian\Jinja\Runtime\FloatValue;
 use Codewithkyrian\Jinja\Runtime\FunctionValue;
 use Codewithkyrian\Jinja\Runtime\IntegerValue;
+use Codewithkyrian\Jinja\Runtime\KeywordArgumentsValue;
 use Codewithkyrian\Jinja\Runtime\NullValue;
 use Codewithkyrian\Jinja\Runtime\NumericValue;
 use Codewithkyrian\Jinja\Runtime\ObjectValue;
@@ -43,14 +44,12 @@ class Environment
         $this->parent = $parent;
 
         $this->variables = [
-            'namespace' => new FunctionValue(function ($args) {
-                if (count($args) === 0) {
+            'namespace' => new FunctionValue(function (?KeywordArgumentsValue $args = null) {
+                if (!$args) {
                     return new ObjectValue([]);
                 }
-                if (count($args) !== 1 || !($args[0] instanceof ObjectValue)) {
-                    throw new RuntimeException("`namespace` expects either zero arguments or a single object argument");
-                }
-                return $args[0];
+
+                return new ObjectValue($args->value);
             })
         ];
 
