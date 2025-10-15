@@ -375,6 +375,7 @@ class Interpreter
                     "abs" => $operand instanceof IntegerValue ? new IntegerValue(abs($operand->value)) : new FloatValue(abs($operand->value)),
                     "int" => new IntegerValue((int)floor($operand->value)),
                     "float" => new FloatValue((float)$operand->value),
+                    "string" => new StringValue((string)$operand->value),
                     default => throw new \Exception("Unknown NumericValue filter: {$filter->value}"),
                 };
             }
