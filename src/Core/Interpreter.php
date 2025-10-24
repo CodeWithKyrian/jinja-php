@@ -758,7 +758,7 @@ class Interpreter
                 throw new RuntimeException("Cannot access property with non-string: got {$property->type}");
             }
 
-            $value = $object->value[$property->value] ?? $object->builtins[$property->value];
+            $value = $object->value[$property->value] ?? $object->builtins[$property->value] ?? new NullValue();
         } else if ($object instanceof ArrayValue || $object instanceof StringValue) {
             if ($property instanceof IntegerValue) {
                 $index = $property->value;
