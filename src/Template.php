@@ -22,9 +22,9 @@ class Template
      *
      * @param string $template The template string.
      */
-    public function __construct(string $template)
+    public function __construct(string $template, bool $lstripBlocks = true, bool $trimBlocks = true)
     {
-        $tokens = Lexer::tokenize($template, lstripBlocks: true, trimBlocks: true);
+        $tokens = Lexer::tokenize($template, lstripBlocks: $lstripBlocks, trimBlocks: $trimBlocks);
         $this->parsed = Parser::make($tokens)->parse();
     }
 

@@ -91,12 +91,12 @@ class Interpreter
             TupleLiteral::class => fn(TupleLiteral $s, Environment $environment) => new TupleValue(array_map(fn($x) => $this->evaluate($x, $environment), $s->value)),
             ObjectLiteral::class => function (ObjectLiteral $s, Environment $environment): ObjectValue {
                 $mapping = [];
-                foreach ($s->value as $key => $value) {
+                foreach ($s->value as $key) {
                     $evaluatedKey = $this->evaluate($key, $environment);
                     if (!($evaluatedKey instanceof StringValue)) {
                         throw new RuntimeException("Object keys must be strings");
                     }
-                    $mapping[$evaluatedKey->value] = $this->evaluate($value, $environment);
+                    $mapping[$evaluatedKey->value] = $this->evaluate($s->value[$key], $environment);
                 }
                 return new ObjectValue($mapping);
             },
@@ -375,6 +375,7 @@ class Interpreter
                     "abs" => $operand instanceof IntegerValue ? new IntegerValue(abs($operand->value)) : new FloatValue(abs($operand->value)),
                     "int" => new IntegerValue((int)floor($operand->value)),
                     "float" => new FloatValue((float)$operand->value),
+                    "string" => new StringValue((string)$operand->value),
                     default => throw new \Exception("Unknown NumericValue filter: {$filter->value}"),
                 };
             }
@@ -757,7 +758,7 @@ class Interpreter
                 throw new RuntimeException("Cannot access property with non-string: got {$property->type}");
             }
 
-            $value = $object->value[$property->value] ?? $object->builtins[$property->value];
+            $value = $object->value[$property->value] ?? $object->builtins[$property->value] ?? new NullValue();
         } else if ($object instanceof ArrayValue || $object instanceof StringValue) {
             if ($property instanceof IntegerValue) {
                 $index = $property->value;

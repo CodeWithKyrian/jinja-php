@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Codewithkyrian\Jinja\Core;
 
+use SplObjectStorage;
 use Codewithkyrian\Jinja\AST\ArrayLiteral;
 use Codewithkyrian\Jinja\AST\BinaryExpression;
 use Codewithkyrian\Jinja\AST\BreakStatement;
@@ -762,12 +763,12 @@ class Parser
                 return new ArrayLiteral($values);
 
             case TokenType::OpenCurlyBracket:
-                $values = [];
+                $values = new SplObjectStorage();
                 while (!$this->is(TokenType::CloseCurlyBracket)) {
                     $key = $this->parseExpression();
                     $this->expect(TokenType::Colon, "Expected colon between key and value in object literal");
                     $value = $this->parseExpression();
-                    $values[] = ['key' => $key, 'value' => $value]; // TODO: Use SPLObjectStorage
+                    $values->attach($key, $value);
                     if ($this->is(TokenType::Comma)) {
                         $this->current++; // consume comma
                     }

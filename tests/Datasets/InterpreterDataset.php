@@ -8,6 +8,8 @@ const EXAMPLE_FOR_TEMPLATE_2 = "{% for item in seq -%}\n    {{ item }}\n{% endfo
 const EXAMPLE_FOR_TEMPLATE_3 = "{% for item in seq %}\n    {{ item }}\n{%- endfor %}";
 const EXAMPLE_FOR_TEMPLATE_4 = "{% for item in seq -%}\n    {{ item }}\n{%- endfor %}";
 const EXAMPLE_COMMENT_TEMPLATE = "    {# comment #}\n  {# {% if true %} {% endif %} #}\n";
+const EXAMPLE_OBJECT_LITERAL_TEMPLATE = "{% set obj = { 'key1': 'value1', 'key2': 'value2' } %}{{ obj.key1 }} - {{ obj.key2 }}";
+const EXAMPLE_OBJECT_GET = "{% set obj = { 'key1': 'value1', 'key2': 'value2' } %}{{ obj.get('key1') }} - {{ obj.get('key3', 'default') }}";
 
 dataset('interpreterTestData', [
     // If tests
@@ -129,4 +131,34 @@ dataset('interpreterTestData', [
 //        'trim_blocks' => true,
 //        'target' => "",
 //    ],
+
+    // Object literal tests
+    'object literal (no strip or trim)' => [
+        'template' => EXAMPLE_OBJECT_LITERAL_TEMPLATE,
+        'data' => [],
+        'lstrip_blocks' => false,
+        'trim_blocks' => false,
+        'target' => "value1 - value2",
+    ],
+    'object literal (strip and trim)' => [
+        'template' => EXAMPLE_OBJECT_LITERAL_TEMPLATE,
+        'data' => [],
+        'lstrip_blocks' => true,
+        'trim_blocks' => true,
+        'target' => "value1 - value2",
+    ],
+    'object get method (no strip or trim)' => [
+        'template' => EXAMPLE_OBJECT_GET,
+        'data' => [],
+        'lstrip_blocks' => false,
+        'trim_blocks' => false,
+        'target' => "value1 - default",
+    ],
+    'object get method (strip and trim)' => [
+        'template' => EXAMPLE_OBJECT_GET,
+        'data' => [],
+        'lstrip_blocks' => true,
+        'trim_blocks' => true,
+        'target' => "value1 - default",
+    ],
 ]);
