@@ -2,6 +2,19 @@
 
 All notable changes to `jinja-php` will be documented in this file.
 
+## v2.1.0 - 2025-10-27
+
+### What's Changed
+
+* [Fix] Object literal interpretation by @drjamesj in https://github.com/CodeWithKyrian/jinja-php/pull/4
+* Feat: improve code quality and fix runtime argument passing bugs by @CodeWithKyrian in https://github.com/CodeWithKyrian/jinja-php/pull/5
+
+### New Contributors
+
+* @drjamesj made their first contribution in https://github.com/CodeWithKyrian/jinja-php/pull/4
+
+**Full Changelog**: https://github.com/CodeWithKyrian/jinja-php/compare/2.0.0...2.1.0
+
 ## 2.0.0 - 2025-07-20
 
 ### What's New
