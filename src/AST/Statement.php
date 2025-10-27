@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
@@ -10,5 +9,5 @@ namespace Codewithkyrian\Jinja\AST;
  */
 abstract class Statement
 {
-    public string $type = "Statement";
+    public string $type = 'Statement';
 }

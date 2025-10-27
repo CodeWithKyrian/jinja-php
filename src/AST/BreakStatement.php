@@ -6,5 +6,5 @@ namespace Codewithkyrian\Jinja\AST;
 
 class BreakStatement extends Statement
 {
-    public string $type = "BreakStatement";
+    public string $type = 'BreakStatement';
 }

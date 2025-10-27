@@ -2,20 +2,28 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\Core;
 
 use Codewithkyrian\Jinja\Exceptions\SyntaxError;
+
+use function end;
+use function is_null;
+use function preg_match;
+use function preg_replace;
+use function rtrim;
+use function strlen;
+use function substr;
 
 class Lexer
 {
     /**
      * Preprocess a Jinja template string according to Jinja's default whitespace handling.
      *
-     * @param string $template The template string to preprocess.
-     * @param bool $lstripBlocks Whether to strip whitespace from the beginning of lines.
-     * @param bool $trimBlocks Whether to remove the first newline after template tags.
-     * @return string The preprocessed template string.
+     * @param string $template     the template string to preprocess
+     * @param bool   $lstripBlocks whether to strip whitespace from the beginning of lines
+     * @param bool   $trimBlocks   whether to remove the first newline after template tags
+     *
+     * @return string the preprocessed template string
      */
     public static function preprocess(string $template, bool $lstripBlocks = false, bool $trimBlocks = false): string
     {
@@ -24,35 +32,36 @@ class Lexer
 
         // Strip whitespace from block beginnings.
         if ($lstripBlocks) {
-            $template = preg_replace('/^[ \t]*({[#%-])/', '$1', $template);
+            $template = preg_replace('/^[ \t]*({[#%-])/', '$1', $template) ?? $template;
         }
 
         // Remove first newline after template tags
         if ($trimBlocks) {
-            $template = preg_replace('/([#%-]})\n/', '$1', $template);
+            $template = preg_replace('/([#%-]})\n/', '$1', $template) ?? $template;
         }
 
         // Process template string further based on options and Jinja standards
-        $template = preg_replace('/-%}\s*/', '%}', $template);
-        $template = preg_replace('/\s*{%-/', '{%', $template);
-        $template = preg_replace('/-}}\s*/', '}}', $template);
-        $template = preg_replace('/\s*{{-/', '{{', $template);
-        $template = preg_replace('/-#}\s*/', '#}', $template);
-        $template = preg_replace('/\s*{#-/', '{#', $template);
+        $template = preg_replace('/-%}\s*/', '%}', $template) ?? $template;
+        $template = preg_replace('/\s*{%-/', '{%', $template) ?? $template;
+        $template = preg_replace('/-}}\s*/', '}}', $template) ?? $template;
+        $template = preg_replace('/\s*{{-/', '{{', $template) ?? $template;
+        $template = preg_replace('/-#}\s*/', '#}', $template) ?? $template;
+        $template = preg_replace('/\s*{#-/', '{#', $template) ?? $template;
 
         // Handle the custom transformers-specific `generation` tag.
         // See https://github.com/huggingface/transformers/pull/30650 for more information.
-        $template = preg_replace('/{%\s*(end)?generation\s*%}/', '', $template);
-
-        return $template;
+        return (string)(preg_replace('/{%\s*(end)?generation\s*%}/', '', $template) ?? $template);
     }
 
     /**
      *  Generate a list of tokens from a source string.
-     * @param string $source The source string to be tokenized
-     * @param bool $lstripBlocks Whether to strip whitespace from the beginning of lines.
-     * @param bool $trimBlocks Whether to remove the first newline after template tags.
+     *
+     * @param string $source       The source string to be tokenized
+     * @param bool   $lstripBlocks whether to strip whitespace from the beginning of lines
+     * @param bool   $trimBlocks   whether to remove the first newline after template tags
+     *
      * @return Token[]
+     *
      * @throws SyntaxError
      */
     public static function tokenize(string $source, bool $lstripBlocks = false, bool $trimBlocks = false): array
@@ -62,38 +71,41 @@ class Lexer
 
         $src = self::preprocess($source, $lstripBlocks, $trimBlocks);
 
-        $cursorPosition = 0;
+        $cursorPosition    = 0;
         $curlyBracketDepth = 0;
-        $srcLength = strlen($src);
+        $srcLength         = strlen($src);
 
-        $isWord = fn($char) => preg_match('/\w/', $char) == 1;
-        $isInteger = fn($char) => preg_match('/[0-9]/', $char) == 1;
+        $isWord    = fn ($char) => preg_match('/\w/', $char) == 1;
+        $isInteger = fn ($char) => preg_match('/[0-9]/', $char) == 1;
 
-        $consumeWhile = function (callable $predicate) use (&$src, &$cursorPosition, $srcLength) {
-            $str = "";
+        $consumeWhile = function (callable $predicate) use (&$src, &$cursorPosition) {
+            $str = '';
             while ($predicate($src[$cursorPosition])) {
                 // Check for escaped characters
-                if ($src[$cursorPosition] === "\\") {
+                if ($src[$cursorPosition] === '\\') {
                     // Consume the backslash
-                    ++$cursorPosition;
+                    $cursorPosition++;
                     // Check for end of input
                     if ($cursorPosition >= strlen($src)) {
-                        throw new SyntaxError("Unexpected end of input");
+                        throw new SyntaxError('Unexpected end of input');
                     }
 
                     // Add the escaped character
-                    $escaped = $src[$cursorPosition++];
-                    $unescaped = Token::ESCAPE_CHARACTERS[$escaped] ?? throw new SyntaxError("Unexpected escaped character: $escaped");
+                    $escaped   = $src[$cursorPosition++];
+                    $unescaped = Token::ESCAPE_CHARACTERS[$escaped] ?? throw new SyntaxError("Unexpected escaped character: {$escaped}");
                     $str .= $unescaped; // Adjust based on your ESCAPE_CHARACTERS handling
+
                     continue;
                 }
 
                 $str .= $src[$cursorPosition++];
-                if ($cursorPosition >= strlen($src)) throw new SyntaxError("Unexpected end of input");
+                if ($cursorPosition >= strlen($src)) {
+                    throw new SyntaxError('Unexpected end of input');
+                }
             }
+
             return $str;
         };
-
 
         // Build each token until end of input
         while ($cursorPosition < $srcLength) {
@@ -101,53 +113,55 @@ class Lexer
             $lastTokenType = end($tokens)->type ?? null;
 
             if (
-                is_null($lastTokenType)
-                || $lastTokenType === TokenType::CloseStatement
-                || $lastTokenType === TokenType::CloseExpression
-                || $lastTokenType === TokenType::Comment
+                is_null($lastTokenType) ||
+                $lastTokenType === TokenType::CloseStatement ||
+                $lastTokenType === TokenType::CloseExpression ||
+                $lastTokenType === TokenType::Comment
             ) {
-                $text = "";
+                $text = '';
                 while (
-                    $cursorPosition < $srcLength
-                    && !($src[$cursorPosition] === "{" && ($src[$cursorPosition + 1] === "%" || $src[$cursorPosition + 1] === "{" || $src[$cursorPosition + 1] === "#"))
+                    $cursorPosition < $srcLength &&
+                    !($src[$cursorPosition] === '{' && ($src[$cursorPosition + 1] === '%' || $src[$cursorPosition + 1] === '{' || $src[$cursorPosition + 1] === '#'))
                 ) {
                     $text .= $src[$cursorPosition++];
                 }
 
-
                 if (strlen($text) > 0) {
                     $tokens[] = new Token($text, TokenType::Text);
+
                     continue;
                 }
             }
 
             // Possibly consume a comment
-            if ($src[$cursorPosition] === "{" && $src[$cursorPosition + 1] === "#") {
+            if ($src[$cursorPosition] === '{' && $src[$cursorPosition + 1] === '#') {
                 $cursorPosition += 2; // Skip the opening {#
 
-                $comment = "";
-                while ($src[$cursorPosition] !== "#" || $src[$cursorPosition + 1] !== "}") {
+                $comment = '';
+                while ($src[$cursorPosition] !== '#' || $src[$cursorPosition + 1] !== '}') {
                     // Check for end of input
                     if ($cursorPosition + 2 >= $srcLength) {
-                        throw new SyntaxError("Missing end of comment tag");
+                        throw new SyntaxError('Missing end of comment tag');
                     }
                     $comment .= $src[$cursorPosition++];
                 }
                 $tokens[] = new Token($comment, TokenType::Comment);
                 $cursorPosition += 2; // Skip the closing #}
+
                 continue;
             }
 
             // Consume (and ignore) all whitespace inside Jinja statements or expressions
-            $consumeWhile(fn($char) => preg_match('/\s/', $char));
+            $consumeWhile(fn ($char) => preg_match('/\s/', $char));
 
             $char = $src[$cursorPosition];
 
             // Check for unary operators
-            if ($char === "-" || $char === "+") {
-                $lastTokenType = end($tokens)->type;
+            if ($char === '-' || $char === '+') {
+                $lastToken     = end($tokens);
+                $lastTokenType = $lastToken ? $lastToken->type : null;
                 if ($lastTokenType === TokenType::Text || $lastTokenType === null) {
-                    throw new SyntaxError("Unexpected character: $char");
+                    throw new SyntaxError("Unexpected character: {$char}");
                 }
                 switch ($lastTokenType) {
                     case TokenType::Identifier:
@@ -169,9 +183,10 @@ class Lexer
                         $num = $consumeWhile($isInteger);
 
                         $tokens[] = new Token(
-                            "$char$num",
-                            strlen($num) > 0 ? TokenType::NumericLiteral : TokenType::UnaryOperator
+                            "{$char}{$num}",
+                            strlen($num) > 0 ? TokenType::NumericLiteral : TokenType::UnaryOperator,
                         );
+
                         continue 2; // Continue the outer loop.
                 }
             }
@@ -185,7 +200,7 @@ class Lexer
                 //     continue 2; // Continue the outer loop.
                 // }
 
-                if ($sequence === "}}" && $curlyBracketDepth > 0) {
+                if ($sequence === '}}' && $curlyBracketDepth > 0) {
                     continue;
                 }
                 $slice = substr($src, $cursorPosition, strlen($sequence));
@@ -194,32 +209,35 @@ class Lexer
 
                     if ($type === TokenType::OpenExpression) {
                         $curlyBracketDepth = 0;
-                    } else if ($type === TokenType::OpenCurlyBracket) {
-                        ++$curlyBracketDepth;
-                    } else if ($type === TokenType::CloseCurlyBracket) {
-                        --$curlyBracketDepth;
+                    } elseif ($type === TokenType::OpenCurlyBracket) {
+                        $curlyBracketDepth++;
+                    } elseif ($type === TokenType::CloseCurlyBracket) {
+                        $curlyBracketDepth--;
                     }
                     $cursorPosition += strlen($sequence);
+
                     continue 2; // Continue the outer loop.
                 }
             }
 
             if ($char === "'" || $char === '"') {
-                ++$cursorPosition; // Skip the opening quote
-                $str = $consumeWhile(fn($c) => $c !== $char);
+                $cursorPosition++; // Skip the opening quote
+                $str      = $consumeWhile(fn ($c) => $c !== $char);
                 $tokens[] = new Token($str, TokenType::StringLiteral);
-                ++$cursorPosition; // Skip the closing quote
+                $cursorPosition++; // Skip the closing quote
+
                 continue;
             }
 
             if ($isInteger($char)) {
                 $num = $consumeWhile($isInteger);
-                if ($src[$cursorPosition] === "." && $isInteger($src[$cursorPosition + 1])) {
-                    ++$cursorPosition; // consume '.'
+                if ($src[$cursorPosition] === '.' && $isInteger($src[$cursorPosition + 1])) {
+                    $cursorPosition++; // consume '.'
                     $frac = $consumeWhile($isInteger);
-                    $num = "$num.$frac";
+                    $num  = "{$num}.{$frac}";
                 }
                 $tokens[] = new Token($num, TokenType::NumericLiteral);
+
                 continue;
             }
 
@@ -232,7 +250,7 @@ class Lexer
             }
 
             // Fallback error if character does not match any known token types
-            throw new SyntaxError("Unexpected character: $char");
+            throw new SyntaxError("Unexpected character: {$char}");
         }
 
         return $tokens;

@@ -50,11 +50,42 @@ use Codewithkyrian\Jinja\Runtime\RuntimeValue;
 use Codewithkyrian\Jinja\Runtime\StringValue;
 use Codewithkyrian\Jinja\Runtime\TupleValue;
 use Codewithkyrian\Jinja\Runtime\UndefinedValue;
+use Exception;
 
+use function abs;
+use function array_key_exists;
+use function array_keys;
+use function array_map;
+use function array_merge;
+use function array_reverse;
+use function array_slice;
+use function array_unique;
 use function Codewithkyrian\Jinja\array_some;
 use function Codewithkyrian\Jinja\slice;
 use function Codewithkyrian\Jinja\toTitleCase;
-use function PHPUnit\Framework\isNan;
+use function count;
+use function explode;
+use function floor;
+use function fmod;
+use function implode;
+use function in_array;
+use function is_infinite;
+use function is_nan;
+use function is_numeric;
+use function json_encode;
+use function mb_str_split;
+use function range;
+use function sprintf;
+use function str_contains;
+use function str_repeat;
+use function str_split;
+use function strcmp;
+use function strlen;
+use function strtolower;
+use function strtoupper;
+use function trim;
+use function ucfirst;
+use function usort;
 
 class Interpreter
 {
@@ -65,65 +96,80 @@ class Interpreter
         $this->global = $env ?? new Environment();
     }
 
-    public function run($program): RuntimeValue
+    /**
+     * @return RuntimeValue<mixed>
+     */
+    public function run(Statement $program): RuntimeValue
     {
         return $this->evaluate($program, $this->global);
     }
 
-    function evaluate(?Statement $statement, Environment $environment): RuntimeValue
+    /**
+     * @return RuntimeValue<mixed>
+     */
+    public function evaluate(?Statement $statement, Environment $environment): RuntimeValue
     {
-        if ($statement === null) return new UndefinedValue();
+        if ($statement === null) {
+            return new UndefinedValue();
+        }
 
+        /**
+         * @var array<class-string<Statement>, callable(Statement, Environment): RuntimeValue<mixed>>
+         */
         $evaluators = [
-            Program::class => [$this, "evalProgram"],
-            SetStatement::class => [$this, "evaluateSet"],
-            IfStatement::class => [$this, "evaluateIf"],
-            ForStatement::class => [$this, "evaluateFor"],
-            Macro::class => [$this, "evaluateMacro"],
-            CallStatement::class => [$this, "evaluateCallStatement"],
-            FilterStatement::class => [$this, "evaluateFilterStatement"],
-            BreakStatement::class => fn() => throw new BreakControl(),
-            ContinueStatement::class => fn() => throw new ContinueControl(),
-            IntegerLiteral::class => fn(IntegerLiteral $s) => new IntegerValue($s->value),
-            FloatLiteral::class => fn(FloatLiteral $s) => new FloatValue($s->value),
-            StringLiteral::class => fn(StringLiteral $s) => new StringValue($s->value),
-            ArrayLiteral::class => fn(ArrayLiteral $s) => new ArrayValue(array_map(fn($x) => $this->evaluate($x, $environment), $s->value)),
-            TupleLiteral::class => fn(TupleLiteral $s, Environment $environment) => new TupleValue(array_map(fn($x) => $this->evaluate($x, $environment), $s->value)),
-            ObjectLiteral::class => function (ObjectLiteral $s, Environment $environment): ObjectValue {
+            Program::class           => [$this, 'evalProgram'],
+            SetStatement::class      => [$this, 'evaluateSet'],
+            IfStatement::class       => [$this, 'evaluateIf'],
+            ForStatement::class      => [$this, 'evaluateFor'],
+            Macro::class             => [$this, 'evaluateMacro'],
+            CallStatement::class     => [$this, 'evaluateCallStatement'],
+            FilterStatement::class   => [$this, 'evaluateFilterStatement'],
+            BreakStatement::class    => fn () => throw new BreakControl(),
+            ContinueStatement::class => fn () => throw new ContinueControl(),
+            IntegerLiteral::class    => fn (IntegerLiteral $s) => new IntegerValue($s->value),
+            FloatLiteral::class      => fn (FloatLiteral $s) => new FloatValue($s->value),
+            StringLiteral::class     => fn (StringLiteral $s) => new StringValue($s->value),
+            ArrayLiteral::class      => fn (ArrayLiteral $s, Environment $env) => new ArrayValue(array_map(fn ($x) => $this->evaluate($x, $env), $s->value)),
+            TupleLiteral::class      => fn (TupleLiteral $s, Environment $env) => new TupleValue(array_map(fn ($x) => $this->evaluate($x, $env), $s->value)),
+            ObjectLiteral::class     => function (ObjectLiteral $s, Environment $env): ObjectValue {
                 $mapping = [];
+
                 foreach ($s->value as $key) {
-                    $evaluatedKey = $this->evaluate($key, $environment);
+                    $evaluatedKey = $this->evaluate($key, $env);
                     if (!($evaluatedKey instanceof StringValue)) {
-                        throw new RuntimeException("Object keys must be strings");
+                        throw new RuntimeException('Object keys must be strings');
                     }
-                    $mapping[$evaluatedKey->value] = $this->evaluate($s->value[$key], $environment);
+                    $mapping[$evaluatedKey->value] = $this->evaluate($s->value[$key], $env);
                 }
+
                 return new ObjectValue($mapping);
             },
-            Identifier::class => [$this, "evaluateIdentifier"],
-            CallExpression::class => [$this, "evaluateCallExpression"],
-            MemberExpression::class => [$this, "evaluateMemberExpression"],
-            UnaryExpression::class => [$this, "evaluateUnaryExpression"],
-            BinaryExpression::class => [$this, "evaluateBinaryExpression"],
-            FilterExpression::class => [$this, "evaluateFilterExpression"],
-            TestExpression::class => [$this, "evaluateTestExpression"],
-            SelectExpression::class => [$this, "evaluateSelectExpression"],
-            TernaryExpression::class => [$this, "evaluateTernaryExpression"],
-            Comment::class => fn() => new NullValue(),
+            Identifier::class        => [$this, 'evaluateIdentifier'],
+            CallExpression::class    => [$this, 'evaluateCallExpression'],
+            MemberExpression::class  => [$this, 'evaluateMemberExpression'],
+            UnaryExpression::class   => [$this, 'evaluateUnaryExpression'],
+            BinaryExpression::class  => [$this, 'evaluateBinaryExpression'],
+            FilterExpression::class  => [$this, 'evaluateFilterExpression'],
+            TestExpression::class    => [$this, 'evaluateTestExpression'],
+            SelectExpression::class  => [$this, 'evaluateSelectExpression'],
+            TernaryExpression::class => [$this, 'evaluateTernaryExpression'],
+            Comment::class           => fn () => new NullValue(),
         ];
 
         $evaluator = $evaluators[$statement::class] ?? null;
 
         if ($evaluator === null) {
-            throw new RuntimeException("Unknown node type: " . $statement->type);
+            throw new RuntimeException('Unknown node type: ' . $statement->type);
         }
 
         return $evaluator($statement, $environment);
     }
 
-
     /**
      * Evaluates expressions following the binary operation type.
+     *
+     * @return RuntimeValue<mixed>
+     *
      * @throws SyntaxError
      */
     private function evaluateBinaryExpression(BinaryExpression $node, Environment $environment): RuntimeValue
@@ -132,10 +178,10 @@ class Interpreter
 
         // Logical operators with short-circuiting handled by the evaluate function
         switch ($node->operator->value) {
-            case "and":
-                return $left->evaluateAsBool()->value ? $this->evaluate($node->right, $environment) : $left;
-            case "or":
-                return $left->evaluateAsBool()->value ? $left : $this->evaluate($node->right, $environment);
+            case 'and':
+                return $left->asBool()->value ? $this->evaluate($node->right, $environment) : $left;
+            case 'or':
+                return $left->asBool()->value ? $left : $this->evaluate($node->right, $environment);
         }
 
         // For non-short-circuit operators, evaluate the right operand
@@ -143,25 +189,26 @@ class Interpreter
 
         // Equality operators
         switch ($node->operator->value) {
-            case "==":
+            case '==':
                 return new BooleanValue($left->value == $right->value);
-            case "!=":
+            case '!=':
                 return new BooleanValue($left->value != $right->value);
         }
 
         if ($left instanceof UndefinedValue || $right instanceof UndefinedValue) {
             if ($right instanceof UndefinedValue && in_array($node->operator->value, ['in', 'not in'])) {
                 // Special case: `anything in undefined` is `false` and `anything not in undefined` is `true`
-                return new BooleanValue($node->operator->value === "not in");
+                return new BooleanValue($node->operator->value === 'not in');
             }
-            throw new \Exception("Cannot perform operation {$node->operator->value} on undefined values");
+
+            throw new Exception("Cannot perform operation {$node->operator->value} on undefined values");
         }
 
         if ($left instanceof NullValue || $right instanceof NullValue) {
-            throw new \Exception("Cannot perform operation on null values");
+            throw new Exception('Cannot perform operation on null values');
         }
 
-        if ($node->operator->value === "~") {
+        if ($node->operator->value === '~') {
             return new StringValue((string)$left->value . (string)$right->value);
         }
 
@@ -172,21 +219,24 @@ class Interpreter
         ) {
             switch ($node->operator->value) {
                 // Arithmetic operators
-                case "+":
-                case "-":
-                case "*":
+                case '+':
+                case '-':
+                case '*':
                     $result = match ($node->operator->value) {
-                        "+" => $left->value + $right->value,
-                        "-" => $left->value - $right->value,
-                        "*" => $left->value * $right->value,
+                        '+'     => $left->value + $right->value,
+                        '-'     => $left->value - $right->value,
+                        '*'     => $left->value * $right->value,
+                        default => throw new \RuntimeException("Unsupported operator: {$node->operator->value}"),
                     };
+
                     $isFloat = $left instanceof FloatValue || $right instanceof FloatValue;
-                    return $isFloat ? new FloatValue($result) : new IntegerValue($result);
-                case "/":
+
+                    return $isFloat ? new FloatValue((float)$result) : new IntegerValue((int)$result);
+                case '/':
                     $result = $left->value / $right->value;
 
                     if (is_infinite($result) || is_nan($result)) {
-                        throw new \RuntimeException("Invalid division result");
+                        throw new \RuntimeException('Invalid division result');
                     }
 
                     $isFloatOperand = $left instanceof FloatValue || $right instanceof FloatValue;
@@ -195,27 +245,27 @@ class Interpreter
                         return new FloatValue($result);
                     }
 
-                    return fmod($result, 1.0) === 0.0 ? new IntegerValue((int) $result) : new FloatValue($result);
-                case "%":
-                    $result = $left->value % $right->value;
+                    return fmod($result, 1.0) === 0.0 ? new IntegerValue((int)$result) : new FloatValue($result);
+                case '%':
+                    $result         = $left->value % $right->value;
                     $isFloatOperand = $left instanceof FloatValue || $right instanceof FloatValue;
 
                     return $isFloatOperand ? new FloatValue($result) : new IntegerValue($result);
 
                     // Comparison operators
-                case "<":
+                case '<':
                     return new BooleanValue($left->value < $right->value);
-                case ">":
+                case '>':
                     return new BooleanValue($left->value > $right->value);
-                case ">=":
+                case '>=':
                     return new BooleanValue($left->value >= $right->value);
-                case "<=":
+                case '<=':
                     return new BooleanValue($left->value <= $right->value);
             }
         }
 
         // Array operations
-        if ($left instanceof ArrayValue && $right instanceof ArrayValue && $node->operator->value === "+") {
+        if ($left instanceof ArrayValue && $right instanceof ArrayValue && $node->operator->value === '+') {
             // Concatenate arrays
             return new ArrayValue(array_merge($left->value, $right->value));
         }
@@ -225,73 +275,76 @@ class Interpreter
             foreach ($right->value as $item) {
                 if ($item->value === $left->value) {
                     $memberFound = true;
+
                     break;
                 }
             }
             switch ($node->operator->value) {
-                case "in":
+                case 'in':
                     return new BooleanValue($memberFound);
-                case "not in":
+                case 'not in':
                     return new BooleanValue(!$memberFound);
             }
         }
 
         if ($left instanceof StringValue || $right instanceof StringValue) {
             // Ensure both operands are treated as strings for concatenation
-            if ($node->operator->value == "+") {
-                $leftStr = ($left instanceof StringValue) ? $left->value : (string)$left->value;
+            if ($node->operator->value == '+') {
+                $leftStr  = ($left instanceof StringValue) ? $left->value : (string)$left->value;
                 $rightStr = ($right instanceof StringValue) ? $right->value : (string)$right->value;
+
                 return new StringValue($leftStr . $rightStr);
             }
         }
 
         if ($left instanceof StringValue && $right instanceof StringValue) {
             switch ($node->operator->value) {
-                case "in":
+                case 'in':
                     return new BooleanValue(str_contains($right->value, $left->value));
-                case "not in":
+                case 'not in':
                     return new BooleanValue(!str_contains($right->value, $left->value));
             }
         }
 
         if ($left instanceof StringValue && $right instanceof ObjectValue) {
             switch ($node->operator->value) {
-                case "in":
+                case 'in':
                     return new BooleanValue(array_key_exists($left->value, $right->value));
-                case "not in":
+                case 'not in':
                     return new BooleanValue(!array_key_exists($left->value, $right->value));
             }
         }
 
-        throw new SyntaxError("Unknown operator: " . $node->operator->value);
+        throw new SyntaxError('Unknown operator: ' . $node->operator->value);
     }
 
     /**
      * Evaluates the arguments of a call expression.
+     *
      * @param Expression[] $args
-     * @param Environment $environment
-     * @return array<RuntimeValue[], array<string, RuntimeValue>>
+     *
+     * @return array{0: RuntimeValue<mixed>[], 1: array<string, RuntimeValue<mixed>>}
      */
     private function evaluateArguments(array $args, Environment $environment): array
     {
         $positionalArguments = [];
-        $keywordArguments = [];
+        $keywordArguments    = [];
 
         foreach ($args as $argument) {
             if ($argument instanceof SpreadExpression) {
                 $value = $this->evaluate($argument->argument, $environment);
                 if (!($value instanceof ArrayValue)) {
-                    throw new \Exception("Cannot unpack non-iterable type: {$value->type}");
+                    throw new Exception("Cannot unpack non-iterable type: {$value->type}");
                 }
 
                 foreach ($value->value as $item) {
                     $positionalArguments[] = $item;
                 }
-            } else if ($argument instanceof KeywordArgumentExpression) {
+            } elseif ($argument instanceof KeywordArgumentExpression) {
                 $keywordArguments[$argument->key->value] = $this->evaluate($argument->value, $environment);
             } else {
                 if (count($keywordArguments) > 0) {
-                    throw new \Exception("Positional arguments must come before keyword arguments");
+                    throw new Exception('Positional arguments must come before keyword arguments');
                 }
 
                 $positionalArguments[] = $this->evaluate($argument, $environment);
@@ -301,316 +354,357 @@ class Interpreter
         return [$positionalArguments, $keywordArguments];
     }
 
+    /**
+     * @param RuntimeValue<mixed> $operand
+     *
+     * @return RuntimeValue<mixed>
+     */
     private function applyFilter(RuntimeValue $operand, Identifier|CallExpression $filter, Environment $environment): RuntimeValue
     {
         if ($filter instanceof Identifier) {
             if ($filter->value === 'tojson') {
-                return new StringValue(json_encode($operand));
+                $encoded = json_encode($operand);
+                if ($encoded === false) {
+                    throw new RuntimeException('Failed to encode value as JSON');
+                }
+
+                return new StringValue($encoded);
             }
 
             // ArrayValue filters
             if ($operand instanceof ArrayValue) {
                 switch ($filter->value) {
-                    case "list":
+                    case 'list':
                         return $operand;
-                    case "first":
+                    case 'first':
                         return $operand->value[0];
-                    case "last":
+                    case 'last':
                         $lastIndex = count($operand->value) - 1;
+
                         return $operand->value[$lastIndex];
-                    case "length":
+                    case 'length':
                         return new IntegerValue(count($operand->value));
-                    case "reverse":
+                    case 'reverse':
                         $reversed = array_reverse($operand->value);
+
                         return new ArrayValue($reversed);
-                    case "sort":
+                    case 'sort':
                         usort($operand->value, function (RuntimeValue $a, RuntimeValue $b) {
                             if ($a->type != $b->type) {
-                                throw new \Exception("Cannot compare different types: $a->type and $b->type");
+                                throw new Exception("Cannot compare different types: {$a->type} and {$b->type}");
                             }
 
                             return match ($a->type) {
-                                "IntegerValue" => $a->value <=> $b->value,
-                                "FloatValue" => $a->value <=> $b->value,
-                                "StringValue" => strcmp($a->value, $b->value),
-                                default => throw new \Exception("Cannot compare type: $a->type"),
+                                'IntegerValue' => $a->value <=> $b->value,
+                                'FloatValue'   => $a->value <=> $b->value,
+                                'StringValue'  => strcmp($a->value, $b->value),
+                                default        => throw new Exception("Cannot compare type: {$a->type}"),
                             };
                         });
+
                         return new ArrayValue($operand->value);
-                    case "join":
-                        return new StringValue(implode('', $operand->value));
-                    case "string":
-                        return new StringValue(json_encode($operand->value));
-                    case "unique":
+                    case 'join':
+                        return new StringValue(implode('', array_map(fn ($x) => $x->value, $operand->value)));
+                    case 'string':
+                        $encoded = json_encode($operand->value);
+                        if ($encoded === false) {
+                            throw new RuntimeException('Failed to encode value as JSON');
+                        }
+
+                        return new StringValue($encoded);
+                    case 'unique':
                         return new ArrayValue(array_unique($operand->value));
                     default:
-                        throw new \Exception("Unknown ArrayValue filter: {$filter->value}");
+                        throw new Exception("Unknown ArrayValue filter: {$filter->value}");
                 }
             }
 
             // StringValue filters
             if ($operand instanceof StringValue) {
                 return match ($filter->value) {
-                    "length" => new IntegerValue(strlen($operand->value)),
-                    "upper" => new StringValue(strtoupper($operand->value)),
-                    "lower" => new StringValue(strtolower($operand->value)),
-                    "title" => new StringValue(toTitleCase($operand->value)),
-                    "capitalize" => new StringValue(ucfirst($operand->value)),
-                    "trim" => new StringValue(trim($operand->value)),
-                    "indent" => new StringValue(implode("\n", array_map(
-                        fn($x, $i) => $i === 0 || $x === "" ? $x : "    " . $x,
+                    'length'     => new IntegerValue(strlen($operand->value)),
+                    'upper'      => new StringValue(strtoupper($operand->value)),
+                    'lower'      => new StringValue(strtolower($operand->value)),
+                    'title'      => new StringValue(toTitleCase($operand->value)),
+                    'capitalize' => new StringValue(ucfirst($operand->value)),
+                    'trim'       => new StringValue(trim($operand->value)),
+                    'indent'     => new StringValue(implode("\n", array_map(
+                        fn ($x, $i) => $i === 0 || $x === '' ? $x : '    ' . $x,
                         explode("\n", $operand->value),
-                        range(0, count(explode("\n", $operand->value)) - 1)
+                        range(0, count(explode("\n", $operand->value)) - 1),
                     ))),
-                    "string" => $operand,
-                    "int" => new IntegerValue((int)$operand->value),
-                    "float" => new FloatValue((float)$operand->value),
-                    default => throw new \Exception("Unknown StringValue filter: {$filter->value}"),
+                    'string' => $operand,
+                    'int'    => new IntegerValue((int)$operand->value),
+                    'float'  => new FloatValue((float)$operand->value),
+                    default  => throw new Exception("Unknown StringValue filter: {$filter->value}"),
                 };
             }
 
             // NumericValue filters
             if ($operand instanceof IntegerValue || $operand instanceof FloatValue) {
                 return match ($filter->value) {
-                    "abs" => $operand instanceof IntegerValue ? new IntegerValue(abs($operand->value)) : new FloatValue(abs($operand->value)),
-                    "int" => new IntegerValue((int)floor($operand->value)),
-                    "float" => new FloatValue((float)$operand->value),
-                    "string" => new StringValue((string)$operand->value),
-                    default => throw new \Exception("Unknown NumericValue filter: {$filter->value}"),
+                    'abs'    => $operand instanceof IntegerValue
+                        ? new IntegerValue((int)abs($operand->value))
+                        : new FloatValue((float)abs($operand->value)),
+                    'int'    => new IntegerValue((int)floor($operand->value)),
+                    'float'  => new FloatValue((float)$operand->value),
+                    'string' => new StringValue((string)$operand->value),
+                    default  => throw new Exception("Unknown NumericValue filter: {$filter->value}"),
                 };
             }
 
             // ObjectValue filters
             if ($operand instanceof ObjectValue) {
                 switch ($filter->value) {
-                    case "items":
+                    case 'items':
                         $items = [];
                         foreach ($operand->value as $key => $value) {
                             $items[] = new ArrayValue([new StringValue($key), $value]);
                         }
+
                         return new ArrayValue($items);
-                    case "length":
+                    case 'length':
                         return new IntegerValue(count($operand->value));
                     default:
-                        throw new \Exception("Unknown ObjectValue filter: {$filter->value}");
+                        throw new Exception("Unknown ObjectValue filter: {$filter->value}");
                 }
             }
 
             // BooleanValue filters
             if ($operand instanceof BooleanValue) {
                 switch ($filter->value) {
-                    case "bool":
+                    case 'bool':
                         return $operand;
-                    case "int":
+                    case 'int':
                         return new IntegerValue($operand->value ? 1 : 0);
-                    case "float":
+                    case 'float':
                         return new FloatValue($operand->value ? 1.0 : 0.0);
-                    case "string":
-                        return new StringValue($operand->value ? "true" : "false");
+                    case 'string':
+                        return new StringValue($operand->value ? 'true' : 'false');
                     default:
-                        throw new \Exception("Unknown BooleanValue filter: {$filter->value}");
+                        throw new Exception("Unknown BooleanValue filter: {$filter->value}");
                 }
             }
 
-            throw new \Exception("Cannot apply filter {$filter->value} to type $operand->type");
+            throw new Exception("Cannot apply filter {$filter->value} to type {$operand->type}");
         }
 
-        if ($filter instanceof CallExpression) {
-            if (!($filter->callee instanceof Identifier)) {
-                throw new \Exception("Unknown filter: {$filter->callee->type}");
+        if (!($filter->callee instanceof Identifier)) {
+            throw new Exception("Unknown filter: {$filter->callee->type}");
+        }
+
+        $filterName = $filter->callee->value;
+
+        if ($filterName === 'tojson') {
+            $encoded = json_encode($operand);
+            if ($encoded === false) {
+                throw new RuntimeException('Failed to encode value as JSON');
             }
 
-            $filterName = $filter->callee->value;
+            return new StringValue($encoded);
+        }
 
-            if ($filterName === "tojson") {
-                return new StringValue(json_encode($operand));
+        if ($filterName === 'join') {
+            if ($operand instanceof StringValue) {
+                $value = mb_str_split($operand->value);
+            } elseif ($operand instanceof ArrayValue) {
+                $value = array_map(fn ($x) => $x->value, $operand->value);
+            } else {
+                throw new Exception("Cannot apply join filter to type: {$operand->type}");
             }
 
-            if ($filterName === "join") {
-                if ($operand instanceof StringValue) {
-                    $value = mb_str_split($operand->value);
-                } elseif ($operand instanceof ArrayValue) {
-                    $value = $operand->value;
-                } else {
-                    throw new \Exception("Cannot apply join filter to type: $operand->type");
-                }
+            [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+            $separator       = $args[0] ?? $kwargs['separator'] ?? new StringValue('');
 
-                [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
-                $separator = $args[0] ?? $kwargs["separator"] ?? new StringValue("");
-
-                if (!($separator instanceof StringValue)) {
-                    throw new \Exception("separator must be a string");
-                }
-
-                return new StringValue(implode($separator->value, $value));
+            if (!($separator instanceof StringValue)) {
+                throw new Exception('separator must be a string');
             }
 
-            if ($filterName === "int" || $filterName === "float") {
-                [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
-                $default = $args[0] ?? $kwargs["default"] ?? ($filterName === "int" ? new IntegerValue(0) : new FloatValue(0.0));
+            return new StringValue(implode($separator->value, $value));
+        }
 
-                if ($operand instanceof IntegerValue || $operand instanceof FloatValue) {
-                    return $operand;
-                }
+        if ($filterName === 'int' || $filterName === 'float') {
+            [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+            $default         = $args[0] ?? $kwargs['default'] ?? null;
 
-                if ($operand instanceof StringValue) {
-                    $value = $filterName === "int" ? (int)$operand->value : (float)$operand->value;
-
-                    return isNan($value) ? $default : ($filterName === "int" ? new IntegerValue($value) : new FloatValue($value));
-                }
-
-                if ($operand instanceof BooleanValue) {
-                    return $filterName === "int" ? new IntegerValue($operand->value ? 1 : 0) : new FloatValue($operand->value ? 1.0 : 0.0);
-                }
-
-                throw new \Exception("Cannot apply $filterName filter to type: $operand->type");
-            }
-
-            if ($filterName === "default") {
-                [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
-                $default = $args[0] ?? new StringValue("");
-                $boolean = $args[1] ?? $kwargs["boolean"] ?? new BooleanValue(false);
-
-                if (!($boolean instanceof BooleanValue)) {
-                    throw new \Exception("`default` filter flag must be a boolean");
-                }
-
-                if ($operand instanceof UndefinedValue || $operand instanceof NullValue || ($boolean->value && !$operand->evaluateAsBool()->value)) {
-                    return $default;
-                }
-
+            if ($operand instanceof IntegerValue || $operand instanceof FloatValue) {
                 return $operand;
             }
 
-            if ($operand instanceof ArrayValue) {
-                switch ($filterName) {
-                    case "selectattr":
-                    case "rejectattr":
-                        if (array_some($operand->value, fn($x) => !($x instanceof ObjectValue))) {
-                            throw new \Exception("`$filterName` can only be applied to an array of objects");
-                        }
-
-                        if (array_some($filter->args, fn($x) => $x->type !== "StringLiteral")) {
-                            throw new \Exception("The arguments of `$filterName` must be strings");
-                        }
-
-                        [$attrExpr, $testNameExpr, $valueExpr] = $filter->args;
-
-                        $attr = $this->evaluate($attrExpr, $environment);
-                        $testName = isset($testNameExpr) ? $this->evaluate($testNameExpr, $environment) : null;
-                        $value = isset($valueExpr) ? $this->evaluate($valueExpr, $environment) : null;
-
-                        if (!($attr instanceof StringValue)) {
-                            throw new \Exception("The attribute name of `$filterName` must be a string");
-                        }
-
-                        $testFunction = null;
-                        if ($testName !== null) {
-                            $test = $environment->tests[$testName->value] ?? null;
-                            if ($test === null) {
-                                throw new \Exception("Unknown test: " . $testName->value);
-                            }
-                            $testFunction = $test;
-                        } else {
-                            // Default to checking for truthiness if no test name is provided
-                            $testFunction = fn($x) => $x->evaluateAsBool()->value;
-                        }
-
-                        $filtered = [];
-                        foreach ($operand->value as $item) {
-                            $attrValue = $item->value[$attr->value] ?? null;
-                            if ($attrValue === null) {
-                                continue;
-                            }
-
-                            $testResult = $testFunction($attrValue, $value);
-                            $shouldInclude = ($filterName === "selectattr") ? $testResult : !$testResult;
-
-                            if ($shouldInclude) {
-                                $filtered[] = $item;
-                            }
-                        }
-
-                        return new ArrayValue($filtered);
-
-                    case "map":
-                        [$_, $kwargs] = $this->evaluateArguments($filter->args, $environment);
-
-                        if (array_key_exists("attribute", $kwargs)) {
-                            $attr = $kwargs["attribute"];
-                            if (!($attr instanceof StringValue)) {
-                                throw new \Exception("attribute must be a string");
-                            }
-
-                            $defaultValue = $kwargs["default"] ?? new UndefinedValue();
-
-                            $mapped = array_map(function ($item) use ($attr, $defaultValue) {
-                                if (!($item instanceof ObjectValue)) {
-                                    throw new \Exception("items in map must be an object");
-                                }
-
-                                return $item->value[$attr->value] ?? $defaultValue;
-                            }, $operand->value);
-
-                            return new ArrayValue($mapped);
-                        } else {
-                            throw new \Exception("`map` expressions without `attribute` set are not currently supported.");
-                        }
-
-                    default:
-                        throw new \Exception("Unknown ArrayValue filter: $filterName");
-                }
-            }
-
             if ($operand instanceof StringValue) {
-                switch ($filterName) {
-                    case "indent":
-                        [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+                if ($filterName === 'int') {
+                    if (!is_numeric($operand->value)) {
+                        return $default ?? new IntegerValue(0);
+                    }
 
-                        $width = $args[0] ?? $kwargs["width"] ?? new IntegerValue(4);
-                        if (!($width instanceof IntegerValue)) {
-                            throw new \Exception("width must be a number");
-                        }
+                    $value = (int)$operand->value;
 
-                        $first = $args[1] ?? $kwargs["first"] ?? new BooleanValue(false);
-                        $blank = $args[2] ?? $kwargs["blank"] ?? new BooleanValue(false);
-
-                        $lines = explode("\n", $operand->value);
-                        $indent = str_repeat(" ", $width->value);
-                        $indented = array_map(function ($x, $i) use ($first, $blank, $indent) {
-                            return (!($first->value) && $i === 0) || (!($blank->value) && $x === "") ? $x : $indent . $x;
-                        }, $lines, range(0, count($lines) - 1));
-
-                        return new StringValue(implode("\n", $indented));
-
-                    case "replace":
-                        $replaceFn = $operand->builtins["replace"] ?? null;
-
-                        if (!($replaceFn instanceof FunctionValue)) {
-                            throw new \Exception("`replace` filter not available for type: $operand->type");
-                        }
-
-                        [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
-
-                        return ($replaceFn->value)([...$args, new KeywordArgumentsValue($kwargs)], $environment);
-
-                    default:
-                        throw new \Exception("Unknown StringValue filter: $filterName");
+                    return new IntegerValue($value);
                 }
+                $value = (float)$operand->value;
+
+                if (is_nan($value)) {
+                    return $default ?? new FloatValue(0.0);
+                }
+
+                return new FloatValue($value);
+
             }
 
-            throw new \Exception("Cannot apply filter \"$filterName\" to type: $operand->type");
+            if ($operand instanceof BooleanValue) {
+                return $filterName === 'int' ? new IntegerValue($operand->value ? 1 : 0) : new FloatValue($operand->value ? 1.0 : 0.0);
+            }
+
+            throw new Exception("Cannot apply {$filterName} filter to type: {$operand->type}");
         }
 
-        throw new \Exception("Unknown filter: {$filter->type}");
+        if ($filterName === 'default') {
+            [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+            $default         = $args[0] ?? new StringValue('');
+            $boolean         = $args[1] ?? $kwargs['boolean'] ?? new BooleanValue(false);
+
+            if (!($boolean instanceof BooleanValue)) {
+                throw new Exception('`default` filter flag must be a boolean');
+            }
+
+            if ($operand instanceof UndefinedValue || $operand instanceof NullValue || ($boolean->value && !$operand->asBool()->value)) {
+                return $default;
+            }
+
+            return $operand;
+        }
+
+        if ($operand instanceof ArrayValue) {
+            switch ($filterName) {
+                case 'selectattr':
+                case 'rejectattr':
+                    if (array_some($operand->value, fn ($x) => !($x instanceof ObjectValue))) {
+                        throw new Exception("`{$filterName}` can only be applied to an array of objects");
+                    }
+
+                    if (array_some($filter->args, fn ($x) => $x->type !== 'StringLiteral')) {
+                        throw new Exception("The arguments of `{$filterName}` must be strings");
+                    }
+
+                    $attrExpr     = $filter->args[0];
+                    $testNameExpr = $filter->args[1] ?? null;
+                    $valueExpr    = $filter->args[2] ?? null;
+
+                    $attr     = $this->evaluate($attrExpr, $environment);
+                    $testName = $testNameExpr ? $this->evaluate($testNameExpr, $environment) : null;
+                    $value    = $valueExpr ? $this->evaluate($valueExpr, $environment) : null;
+
+                    if (!($attr instanceof StringValue)) {
+                        throw new Exception("The attribute name of `{$filterName}` must be a string");
+                    }
+
+                    $testFunction = null;
+                    if ($testName !== null) {
+                        $test = $environment->tests[$testName->value] ?? null;
+                        if ($test === null) {
+                            throw new Exception('Unknown test: ' . $testName->value);
+                        }
+                        $testFunction = $test;
+                    } else {
+                        // Default to checking for truthiness if no test name is provided
+                        $testFunction = fn ($x) => $x->evaluateAsBool()->value;
+                    }
+
+                    $filtered = [];
+                    foreach ($operand->value as $item) {
+                        $attrValue = $item->value[$attr->value] ?? null;
+                        if ($attrValue === null) {
+                            continue;
+                        }
+
+                        $testResult    = $testFunction($attrValue, $value);
+                        $shouldInclude = ($filterName === 'selectattr') ? $testResult : !$testResult;
+
+                        if ($shouldInclude) {
+                            $filtered[] = $item;
+                        }
+                    }
+
+                    return new ArrayValue($filtered);
+
+                case 'map':
+                    [$_, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+
+                    if (array_key_exists('attribute', $kwargs)) {
+                        $attr = $kwargs['attribute'];
+                        if (!($attr instanceof StringValue)) {
+                            throw new Exception('attribute must be a string');
+                        }
+
+                        $defaultValue = $kwargs['default'] ?? new UndefinedValue();
+
+                        $mapped = array_map(function ($item) use ($attr, $defaultValue) {
+                            if (!($item instanceof ObjectValue)) {
+                                throw new Exception('items in map must be an object');
+                            }
+
+                            return $item->value[$attr->value] ?? $defaultValue;
+                        }, $operand->value);
+
+                        return new ArrayValue($mapped);
+                    }
+
+                    throw new Exception('`map` expressions without `attribute` set are not currently supported.');
+
+                default:
+                    throw new Exception("Unknown ArrayValue filter: {$filterName}");
+            }
+        }
+
+        if ($operand instanceof StringValue) {
+            switch ($filterName) {
+                case 'indent':
+                    [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+
+                    $width = $args[0] ?? $kwargs['width'] ?? new IntegerValue(4);
+                    if (!($width instanceof IntegerValue)) {
+                        throw new Exception('width must be a number');
+                    }
+
+                    $first = $args[1] ?? $kwargs['first'] ?? new BooleanValue(false);
+                    $blank = $args[2] ?? $kwargs['blank'] ?? new BooleanValue(false);
+
+                    $lines    = explode("\n", $operand->value);
+                    $indent   = str_repeat(' ', $width->value);
+                    $indented = array_map(function ($x, $i) use ($first, $blank, $indent) {
+                        return (!($first->value) && $i === 0) || (!($blank->value) && $x === '') ? $x : $indent . $x;
+                    }, $lines, range(0, count($lines) - 1));
+
+                    return new StringValue(implode("\n", $indented));
+
+                case 'replace':
+                    $replaceFn = $operand->builtins['replace'] ?? null;
+
+                    if (!($replaceFn instanceof FunctionValue)) {
+                        throw new Exception("`replace` filter not available for type: {$operand->type}");
+                    }
+
+                    [$args, $kwargs] = $this->evaluateArguments($filter->args, $environment);
+
+                    return ($replaceFn->value)([...$args, new KeywordArgumentsValue($kwargs)], $environment);
+
+                default:
+                    throw new Exception("Unknown StringValue filter: {$filterName}");
+            }
+        }
+
+        throw new Exception("Cannot apply filter \"{$filterName}\" to type: {$operand->type}");
     }
 
     /**
      * Evaluates expressions following the filter operation type.
+     *
+     * @return RuntimeValue<mixed>
      */
     private function evaluateFilterExpression(FilterExpression $node, Environment $environment): RuntimeValue
     {
         $operand = $this->evaluate($node->operand, $environment);
+
         return $this->applyFilter($operand, $node->filter, $environment);
     }
 
@@ -624,7 +718,7 @@ class Interpreter
         $testFunction = $environment->tests[$node->test->value] ?? null;
 
         if ($testFunction === null) {
-            throw new \Exception("Unknown test: {$node->test->value}");
+            throw new Exception("Unknown test: {$node->test->value}");
         }
 
         $result = $testFunction($operand);
@@ -634,12 +728,14 @@ class Interpreter
 
     /**
      * Evaluates expressions following the select operation type.
+     *
+     * @return RuntimeValue<mixed>
      */
     private function evaluateSelectExpression(SelectExpression $node, Environment $environment): RuntimeValue
     {
         $predicate = $this->evaluate($node->test, $environment);
 
-        if (!$predicate->evaluateAsBool()->value) {
+        if (!$predicate->asBool()->value) {
             return new UndefinedValue();
         }
 
@@ -648,22 +744,27 @@ class Interpreter
 
     /**
      * Evaluates expressions following the unary operation type.
+     *
+     * @return RuntimeValue<mixed>
      */
     private function evaluateUnaryExpression(UnaryExpression $node, Environment $environment): RuntimeValue
     {
         $argument = $this->evaluate($node->argument, $environment);
 
         return match ($node->operator->value) {
-            "not" => new BooleanValue(!$argument->value),
-            default => throw new \Exception("Unknown operator: {$node->operator->value}"),
+            'not'   => new BooleanValue(!$argument->value),
+            default => throw new Exception("Unknown operator: {$node->operator->value}"),
         };
     }
 
+    /**
+     * @return RuntimeValue<mixed>
+     */
     private function evaluateTernaryExpression(TernaryExpression $node, Environment $environment): RuntimeValue
     {
         $predicate = $this->evaluate($node->condition, $environment);
 
-        return $predicate->evaluateAsBool()->value
+        return $predicate->asBool()->value
             ? $this->evaluate($node->ifTrue, $environment)
             : $this->evaluate($node->ifFalse, $environment);
     }
@@ -678,21 +779,28 @@ class Interpreter
      */
     private function evaluateBlock(array $statements, Environment $environment): StringValue
     {
-        $result = "";
+        $result = '';
         foreach ($statements as $statement) {
             $lastEvaluated = $this->evaluate($statement, $environment);
             if (!($lastEvaluated instanceof NullValue) && !($lastEvaluated instanceof UndefinedValue)) {
-                $result .= (string) $lastEvaluated->value;
+                $result .= (string)$lastEvaluated->value;
             }
         }
+
         return new StringValue($result);
     }
 
+    /**
+     * @return RuntimeValue<mixed>
+     */
     private function evaluateIdentifier(Identifier $node, Environment $environment): RuntimeValue
     {
         return $environment->lookupVariable($node->value);
     }
 
+    /**
+     * @return RuntimeValue<mixed>
+     */
     private function evaluateCallExpression(CallExpression $expr, Environment $environment): RuntimeValue
     {
         [$args, $kwargs] = $this->evaluateArguments($expr->args, $environment);
@@ -703,52 +811,62 @@ class Interpreter
 
         $fn = $this->evaluate($expr->callee, $environment);
         if (!($fn instanceof FunctionValue)) {
-            throw new RuntimeException("Cannot call something that is not a function: got $fn->type");
+            throw new RuntimeException("Cannot call something that is not a function: got {$fn->type}");
         }
 
         return $fn->call($args, $environment);
     }
 
+    /**
+     * @param RuntimeValue<mixed> $object
+     */
     private function evaluateSliceExpression(RuntimeValue $object, SliceExpression $expr, Environment $environment): ArrayValue|StringValue
     {
         if (!($object instanceof ArrayValue || $object instanceof StringValue)) {
-            throw new RuntimeException("Slice object must be an array or string");
+            throw new RuntimeException('Slice object must be an array or string');
         }
 
         $start = $this->evaluate($expr->start, $environment);
-        $stop = $this->evaluate($expr->stop, $environment);
-        $step = $this->evaluate($expr->step, $environment);
+        $stop  = $this->evaluate($expr->stop, $environment);
+        $step  = $this->evaluate($expr->step, $environment);
 
         // Validate arguments
         if (!($start instanceof IntegerValue || $start instanceof UndefinedValue)) {
-            throw new RuntimeException("Slice start must be an integer or undefined");
+            throw new RuntimeException('Slice start must be an integer or undefined');
         }
         if (!($stop instanceof IntegerValue || $stop instanceof UndefinedValue)) {
-            throw new RuntimeException("Slice stop must be an integer or undefined");
+            throw new RuntimeException('Slice stop must be an integer or undefined');
         }
         if (!($step instanceof IntegerValue || $step instanceof UndefinedValue)) {
-            throw new RuntimeException("Slice step must be an integer or undefined");
+            throw new RuntimeException('Slice step must be an integer or undefined');
         }
 
         if ($object instanceof ArrayValue) {
             $sliced = slice($object->value, $start->value, $stop->value, $step->value);
+
             return new ArrayValue($sliced);
-        } else {
-            $sliced = slice($object->value, $start->value, $stop->value, $step->value);
-            return new StringValue(implode("", $sliced));
         }
+
+        $sliced = slice(str_split($object->value), $start->value, $stop->value, $step->value);
+
+        return new StringValue(implode('', $sliced));
     }
 
+    /**
+     * @return RuntimeValue<mixed>
+     */
     private function evaluateMemberExpression(MemberExpression $expr, Environment $environment): RuntimeValue
     {
         $object = $this->evaluate($expr->object, $environment);
 
         if ($expr->computed) {
-            if ($expr->property->type == "SliceExpression") {
-                return $this->evaluateSliceExpression($object, $expr->property, $environment);
-            } else {
-                $property = $this->evaluate($expr->property, $environment);
+            if ($expr->property->type == 'SliceExpression') {
+                /** @var SliceExpression $slice */
+                $slice = $expr->property;
+
+                return $this->evaluateSliceExpression($object, $slice, $environment);
             }
+            $property = $this->evaluate($expr->property, $environment);
         } else {
             $property = new StringValue($expr->property->value);
         }
@@ -759,10 +877,10 @@ class Interpreter
             }
 
             $value = $object->value[$property->value] ?? $object->builtins[$property->value] ?? new NullValue();
-        } else if ($object instanceof ArrayValue || $object instanceof StringValue) {
+        } elseif ($object instanceof ArrayValue || $object instanceof StringValue) {
             if ($property instanceof IntegerValue) {
-                $index = $property->value;
-                $length = count($object->value);
+                $index  = $property->value;
+                $length = $object instanceof ArrayValue ? count($object->value) : strlen($object->value);
 
                 // Handle negative indices (Python-style)
                 if ($index < 0) {
@@ -778,7 +896,7 @@ class Interpreter
                 if ($object instanceof StringValue) {
                     $value = new StringValue($object->value[$index]);
                 }
-            } else if ($property instanceof StringValue) {
+            } elseif ($property instanceof StringValue) {
                 $value = $object->builtins[$property->value];
             } else {
                 throw new RuntimeException("Cannot access property with non-string/non-number: got {$property->type}");
@@ -804,10 +922,10 @@ class Interpreter
                 throw new RuntimeException("Cannot unpack non-iterable type in set: got {$rhs->type}");
             }
 
-            $assigneeValue = (array) $node->assignee->value;
+            $assigneeValue = (array)$node->assignee->value;
 
             if (count($assigneeValue) !== count($rhs->value)) {
-                throw new RuntimeException("Too " . (count($assigneeValue) > count($rhs->value) ? "few" : "many") . " items to unpack in set");
+                throw new RuntimeException('Too ' . (count($assigneeValue) > count($rhs->value) ? 'few' : 'many') . ' items to unpack in set');
             }
 
             foreach ($assigneeValue as $i => $identifier) {
@@ -820,11 +938,11 @@ class Interpreter
         } elseif ($node->assignee instanceof MemberExpression) {
             $object = $this->evaluate($node->assignee->object, $environment);
             if (!($object instanceof ObjectValue)) {
-                throw new RuntimeException("Cannot assign to member of non-object");
+                throw new RuntimeException('Cannot assign to member of non-object');
             }
             $object->value[$node->assignee->property->value] = $rhs;
         } else {
-            throw new RuntimeException("Invalid LHS in assignment");
+            throw new RuntimeException('Invalid LHS in assignment');
         }
 
         return new NullValue();
@@ -833,11 +951,11 @@ class Interpreter
     private function evaluateIf(IfStatement $node, Environment $environment): StringValue
     {
         $test = $this->evaluate($node->test, $environment);
-        if ($test->evaluateAsBool()->value) {
+        if ($test->asBool()->value) {
             return $this->evaluateBlock($node->body, $environment);
-        } else {
-            return $this->evaluateBlock($node->alternate, $environment);
         }
+
+        return $this->evaluateBlock($node->alternate, $environment);
     }
 
     private function evaluateFor(ForStatement $node, Environment $environment): StringValue
@@ -847,40 +965,34 @@ class Interpreter
         $iterable = $test = null;
         if ($node->iterable instanceof SelectExpression) {
             $iterable = $this->evaluate($node->iterable->lhs, $scope);
-            $test = $node->iterable->test;
+            $test     = $node->iterable->test;
         } else {
             $iterable = $this->evaluate($node->iterable, $scope);
         }
 
         if (!($iterable instanceof ArrayValue || $iterable instanceof ObjectValue)) {
-            throw new RuntimeException("Expected iterable or object type in for loop: got $iterable->type");
+            throw new RuntimeException("Expected iterable or object type in for loop: got {$iterable->type}");
         }
 
-        if ($iterable instanceof ObjectValue) {
-            $iterable = array_keys($iterable->value);
-        }
-
-        $items = [];
+        $items                = [];
         $scopeUpdateFunctions = [];
 
-        foreach ($iterable->value as $i => $current) {
+        foreach ($iterable->value as $current) {
             $loopScope = new Environment($scope);
-
-            $current = $iterable->value[$i];
 
             $scopeUpdateFunction = null;
 
             if ($node->loopvar instanceof Identifier) {
-                $scopeUpdateFunction = fn($scope) => $scope->setVariable($node->loopvar->value, $current);
+                $scopeUpdateFunction = fn ($scope) => $scope->setVariable($node->loopvar->value, $current);
             } elseif ($node->loopvar instanceof TupleLiteral) {
                 if (!($current instanceof ArrayValue)) {
-                    throw new RuntimeException("Cannot unpack non-iterable type");
+                    throw new RuntimeException('Cannot unpack non-iterable type');
                 }
 
-                $loopVarLength = count((array) $node->loopvar->value);
+                $loopVarLength = count((array)$node->loopvar->value);
                 $currentLength = count($current->value);
                 if ($loopVarLength !== $currentLength) {
-                    throw new RuntimeException(sprintf("Too %s items to unpack", $loopVarLength > $currentLength ? "few" : "many"));
+                    throw new RuntimeException(sprintf('Too %s items to unpack', $loopVarLength > $currentLength ? 'few' : 'many'));
                 }
 
                 $scopeUpdateFunction = function ($scope) use ($node, $current) {
@@ -899,33 +1011,33 @@ class Interpreter
                 $scopeUpdateFunction($loopScope);
 
                 $testValue = $this->evaluate($test, $loopScope);
-                if (!$testValue->evaluateAsBool()->value) {
+                if (!$testValue->asBool()->value) {
                     continue;
                 }
             }
 
-            $items[] = $current;
+            $items[]                = $current;
             $scopeUpdateFunctions[] = $scopeUpdateFunction;
         }
 
-        $result = "";
+        $result      = '';
         $noIteration = true;
-        $length = count($items);
+        $length      = count($items);
 
-        for ($i = 0; $i < $length; ++$i) {
+        for ($i = 0; $i < $length; $i++) {
             $loop = [
-                "index" => new IntegerValue($i + 1),
-                "index0" => new IntegerValue($i),
-                "revindex" => new IntegerValue($length - $i),
-                "revindex0" => new IntegerValue($length - $i - 1),
-                "first" => new BooleanValue($i === 0),
-                "last" => new BooleanValue($i === $length - 1),
-                "length" => new IntegerValue($length),
-                "previtem" => $i > 0 ? $items[$i - 1] : new UndefinedValue(),
-                "nextitem" => $i < $length - 1 ? $items[$i + 1] : new UndefinedValue(),
+                'index'     => new IntegerValue($i + 1),
+                'index0'    => new IntegerValue($i),
+                'revindex'  => new IntegerValue($length - $i),
+                'revindex0' => new IntegerValue($length - $i - 1),
+                'first'     => new BooleanValue($i === 0),
+                'last'      => new BooleanValue($i === $length - 1),
+                'length'    => new IntegerValue($length),
+                'previtem'  => $i > 0 ? $items[$i - 1] : new UndefinedValue(),
+                'nextitem'  => $i < $length - 1 ? $items[$i + 1] : new UndefinedValue(),
             ];
 
-            $scope->setVariable("loop", new ObjectValue($loop));
+            $scope->setVariable('loop', new ObjectValue($loop));
 
             $scopeUpdateFunction = $scopeUpdateFunctions[$i];
             $scopeUpdateFunction($scope);
@@ -943,7 +1055,7 @@ class Interpreter
         }
 
         if ($noIteration) {
-            $defaultEvaluated = $this->evaluateBlock($node->defaultBlock, $scope);
+            $defaultEvaluated = $this->evaluateBlock($node->defaultBlock ?? [], $scope);
             $result .= $defaultEvaluated->value;
         }
 
@@ -952,9 +1064,9 @@ class Interpreter
 
     private function evaluateMacro(Macro $node, Environment $environment): NullValue
     {
-        $environment->setVariable($node->name->value, new FunctionValue(function ($args, $scope) use ($node, $environment) {
+        $environment->setVariable($node->name->value, new FunctionValue(function ($args, $scope) use ($node) {
             $macroScope = new Environment($scope);
-            $args = array_slice($args, 0, -1);
+            $args       = array_slice($args, 0, -1);
 
             $kwargs = $args[count($args) - 1];
 
@@ -962,9 +1074,9 @@ class Interpreter
                 $kwargs = null;
             }
 
-            for ($i = 0; $i < count($node->args); ++$i) {
-                $nodeArg = $node->args[$i];
-                $passedArg = $args[$i];
+            for ($i = 0; $i < count($node->args); $i++) {
+                $nodeArg   = $node->args[$i];
+                $passedArg = $args[$i] ?? null;
 
                 if ($nodeArg instanceof Identifier) {
                     if (!$passedArg) {
@@ -991,7 +1103,7 @@ class Interpreter
 
     private function evaluateCallStatement(CallStatement $node, Environment $environment): NullValue
     {
-        $callerFn = new FunctionValue(function ($args, $env) use ($node, $environment) {
+        $callerFn = new FunctionValue(function ($args, $env) use ($node) {
             $callerScope = new Environment($env);
 
             if ($node->args) {
@@ -1008,23 +1120,27 @@ class Interpreter
         });
 
         [$macroArgs, $macroKwargs] = $this->evaluateArguments($node->call->args, $environment);
-        $macroArgs[] = new KeywordArgumentsValue($macroKwargs);
-        $fn = $this->evaluate($node->call->callee, $environment);
+        $macroArgs[]               = new KeywordArgumentsValue($macroKwargs);
+        $fn                        = $this->evaluate($node->call->callee, $environment);
 
         if (!($fn instanceof FunctionValue)) {
             throw new RuntimeException("Cannot call something that is not a function: got {$fn->type}");
         }
 
         $newEnv = new Environment($environment);
-        $newEnv->setVariable("caller", $callerFn);
+        $newEnv->setVariable('caller', $callerFn);
 
-        return $fn->call($macroArgs, $newEnv);
+        $fn->call($macroArgs, $newEnv);
+
+        return new NullValue();
     }
 
     private function evaluateFilterStatement(FilterStatement $node, Environment $environment): StringValue
     {
         $rendered = $this->evaluateBlock($node->body, $environment);
 
-        return $this->applyFilter($rendered, $node->filter, $environment);
+        $result = $this->applyFilter($rendered, $node->filter, $environment);
+
+        return $result instanceof StringValue ? $result : new StringValue((string)$result->value);
     }
 }

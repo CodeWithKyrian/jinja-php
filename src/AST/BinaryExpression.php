@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
@@ -12,12 +11,12 @@ namespace Codewithkyrian\Jinja\AST;
  */
 class BinaryExpression extends Expression
 {
-    public string $type = "BinaryExpression";
+    public string $type = 'BinaryExpression';
 
     public function __construct(
         public mixed $operator,
         public Expression $left,
-        public Expression $right)
-    {
+        public Expression $right,
+    ) {
     }
 }

@@ -6,5 +6,5 @@ namespace Codewithkyrian\Jinja\AST;
 
 class ContinueStatement extends Statement
 {
-    public string $type = "ContinueStatement";
+    public string $type = 'ContinueStatement';
 }

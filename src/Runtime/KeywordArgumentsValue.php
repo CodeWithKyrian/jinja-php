@@ -9,5 +9,5 @@ namespace Codewithkyrian\Jinja\Runtime;
  */
 class KeywordArgumentsValue extends ObjectValue
 {
-    public string $type = "KeywordArgumentsValue";
+    public string $type = 'KeywordArgumentsValue';
 }

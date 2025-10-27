@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
@@ -10,7 +9,7 @@ namespace Codewithkyrian\Jinja\AST;
  */
 class Identifier extends Expression
 {
-    public string $type = "Identifier";
+    public string $type = 'Identifier';
 
     public function __construct(public string $value)
     {

@@ -1,0 +1,22 @@
+parameters:
+    level: 8
+    paths:
+        - src
+    excludePaths:
+        - tests/*
+        - vendor/*
+
+    bootstrapFiles:
+        - src/Core/Utils.php
+
+    ignoreErrors:
+        - '#Access to an undefined property.*#'
+        -  identifier: missingType.iterableValue
+
+    typeAliases:
+        MixedArray: 'array'
+
+    parallel:
+        jobSize: 20
+        maximumNumberOfProcesses: 32
+        minimumNumberOfJobsPerProcess: 2

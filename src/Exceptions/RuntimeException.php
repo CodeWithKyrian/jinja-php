@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\Exceptions;
 
-class RuntimeException extends \Exception
-{
+use Exception;
 
+class RuntimeException extends Exception
+{
 }

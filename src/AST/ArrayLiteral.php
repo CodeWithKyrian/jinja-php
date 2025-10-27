@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
  * Represents an array literal in the template.
+ *
+ * @extends Literal<Expression[]>
  */
 class ArrayLiteral extends Literal
 {
-    public string $type = "ArrayLiteral";
+    public string $type = 'ArrayLiteral';
 
     /**
      * @param Expression[] $value
