@@ -6,7 +6,9 @@ namespace Codewithkyrian\Jinja\AST;
 
 class Comment extends Statement
 {
-    public string $type = "Comment";
+    public string $type = 'Comment';
 
-    public function __construct(public string $value) {}
+    public function __construct(public string $value)
+    {
+    }
 }

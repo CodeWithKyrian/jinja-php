@@ -6,11 +6,12 @@ namespace Codewithkyrian\Jinja\AST;
 
 class FilterStatement extends Statement
 {
-    public string $type = "FilterStatement";
+    public string $type = 'FilterStatement';
 
     /**
-     * @param Identifier|CallExpression $filter
      * @param Statement[] $body
      */
-    public function __construct(public Identifier|CallExpression $filter, public array $body) {}
+    public function __construct(public Identifier|CallExpression $filter, public array $body)
+    {
+    }
 }

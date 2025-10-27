@@ -1,2 +1,5 @@
 vendor
 .idea
+.claude
+.php-cs-fixer.cache
+composer.lock

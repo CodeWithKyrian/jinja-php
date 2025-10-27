@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
@@ -10,7 +9,7 @@ namespace Codewithkyrian\Jinja\AST;
  */
 class Program extends Statement
 {
-    public string $type = "Program";
+    public string $type = 'Program';
 
     /**
      * @param Statement[] $body

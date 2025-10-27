@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 namespace Codewithkyrian\Jinja\AST;
 
 /**
@@ -10,13 +9,12 @@ namespace Codewithkyrian\Jinja\AST;
  */
 class TestExpression extends Expression
 {
-    public string $type = "TestExpression";
+    public string $type = 'TestExpression';
 
     public function __construct(
         public Expression $operand,
         public bool $negate,
-        public Identifier $test
-    )
-    {
+        public Identifier $test,
+    ) {
     }
 }
